@@ -1,0 +1,8 @@
+{
+  "name": "AuditCheck Pro & AI Editor",
+  "description": "Aplicación de auditoría 5S y operativa con integración de Excel y edición de imágenes mediante IA (Gemini).",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
