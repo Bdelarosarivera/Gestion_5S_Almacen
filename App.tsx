@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect, useRef } from 'react';
 import { ViewState, AuditRecord, ActionItem, AppConfig, Rating } from './types';
 import { QUESTIONS, AREA_MAPPING, AREAS } from './constants';
@@ -53,49 +52,54 @@ const App: React.FC = () => {
   const [actions, setActions] = useState<ActionItem[]>([]);
   const [config, setConfig] = useState<AppConfig>(DEFAULT_CONFIG);
   const [editingRecord, setEditingRecord] = useState<AuditRecord | null>(null);
-  const isInitialLoad = useRef(true);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const savedRecords = localStorage.getItem('audit_records');
     const savedActions = localStorage.getItem('audit_actions');
     const savedConfig = localStorage.getItem('audit_config');
 
-    if (savedRecords) try { setRecords(JSON.parse(savedRecords) || []); } catch (e) { console.error(e); setRecords([]); }
-    if (savedActions) try { setActions(JSON.parse(savedActions) || []); } catch (e) { console.error(e); setActions([]); }
-    if (savedConfig) try { setConfig(JSON.parse(savedConfig) || DEFAULT_CONFIG); } catch (e) { console.error(e); setConfig(DEFAULT_CONFIG); }
-    
-    isInitialLoad.current = false;
+    try {
+      if (savedRecords) setRecords(JSON.parse(savedRecords) || []);
+      if (savedActions) setActions(JSON.parse(savedActions) || []);
+      if (savedConfig) setConfig(JSON.parse(savedConfig) || DEFAULT_CONFIG);
+    } catch (e) {
+      console.error("Error cargando datos locales:", e);
+    } finally {
+      setIsLoading(false);
+    }
   }, []);
 
   useEffect(() => {
-    if (!isInitialLoad.current) {
+    if (!isLoading) {
       localStorage.setItem('audit_records', JSON.stringify(records));
       localStorage.setItem('audit_actions', JSON.stringify(actions));
       localStorage.setItem('audit_config', JSON.stringify(config));
     }
-  }, [records, actions, config]);
+  }, [records, actions, config, isLoading]);
 
   const handleSaveAudit = (record: AuditRecord, newActions: ActionItem[]) => {
     if (editingRecord) {
-      setRecords(prev => (prev || []).map(r => r.id === record.id ? record : r));
+      setRecords(prev => prev.map(r => r.id === record.id ? record : r));
       setEditingRecord(null);
     } else {
-      setRecords(prev => [record, ...(prev || [])]);
-      if (newActions && newActions.length > 0) {
-        setActions(prev => [...newActions, ...(prev || [])]);
+      setRecords(prev => [record, ...prev]);
+      if (newActions.length > 0) {
+        setActions(prev => [...newActions, ...prev]);
       }
     }
-    setTimeout(() => setView('dashboard'), 20);
+    // Pequeño delay para asegurar que el DOM se limpie antes de renderizar gráficas pesadas
+    setTimeout(() => setView('dashboard'), 50);
   };
 
   const loadDemoData = () => {
     const demoRecords: AuditRecord[] = config.areas.slice(0, 8).map((area, idx) => ({
         id: `demo-${idx}-${Date.now()}`,
         area: area,
-        auditor: 'Analista de Calidad',
-        responsable: config.responsables.find(r => r.area === area)?.name || 'Supervisor Gral',
+        auditor: 'Analista Demo',
+        responsable: config.responsables.find(r => r.area === area)?.name || 'Admin',
         date: new Date().toISOString(),
-        score: 70 + Math.floor(Math.random() * 25),
+        score: 65 + Math.floor(Math.random() * 30),
         answers: config.questions.map(q => ({ questionId: q.id, rating: Rating.SI }))
     }));
     setRecords(demoRecords);
@@ -103,6 +107,8 @@ const App: React.FC = () => {
   };
 
   const renderContent = () => {
+    if (isLoading) return <div className="flex items-center justify-center h-[60vh] text-blue-500 font-bold">Cargando aplicación...</div>;
+
     switch (view) {
       case 'home':
         return (
