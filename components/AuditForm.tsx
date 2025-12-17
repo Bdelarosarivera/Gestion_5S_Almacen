@@ -93,7 +93,8 @@ export const AuditForm: React.FC<AuditFormProps> = ({ initialData, config, onSav
     const newActions: ActionItem[] = [];
     if (!initialData) { 
         answerList.forEach(ans => {
-            if (ans.rating === Rating.NO || ans.rating === Rating.PARCIAL) {
+            // UPDATED LOGIC: Only generate action plan for "NO"
+            if (ans.rating === Rating.NO) {
                 const q = config.questions.find(q => q.id === ans.questionId);
                 if (q) {
                     const dueDate = new Date(dateObj); 
@@ -104,7 +105,7 @@ export const AuditForm: React.FC<AuditFormProps> = ({ initialData, config, onSav
                         area: area,
                         questionId: q.id,
                         questionText: q.text,
-                        issueType: ans.rating === Rating.NO ? 'NO' : 'PARCIAL',
+                        issueType: 'NO',
                         suggestedAction: `Corregir hallazgo: "${q.text}"`,
                         responsable: responsable,
                         dueDate: dueDate.toISOString(),
