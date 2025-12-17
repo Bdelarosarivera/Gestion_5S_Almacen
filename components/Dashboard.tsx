@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import { AuditRecord, ActionItem } from '../types';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, LabelList, PieChart, Pie, Legend } from 'recharts';
-import { Trophy, TrendingUp, AlertTriangle, CheckCircle, PieChart as PieChartIcon, ClipboardList, Activity } from 'lucide-react';
+import { Trophy, TrendingUp, AlertTriangle, CheckCircle, PieChart as PieChartIcon, ClipboardList, Activity, Camera } from 'lucide-react';
+import html2canvas from 'html2canvas';
 
 interface DashboardProps {
   records: AuditRecord[];
@@ -11,6 +12,26 @@ interface DashboardProps {
 }
 
 export const Dashboard: React.FC<DashboardProps> = ({ records, actions, onViewConsolidated, onViewActions }) => {
+  const dashboardRef = useRef<HTMLDivElement>(null);
+
+  const handleCaptureScreenshot = async () => {
+    if (dashboardRef.current) {
+        try {
+            const canvas = await html2canvas(dashboardRef.current, {
+                backgroundColor: '#121212',
+                scale: 2 // High resolution
+            });
+            const link = document.createElement('a');
+            link.download = `Dashboard_Status_${new Date().toISOString().split('T')[0]}.png`;
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+        } catch (error) {
+            console.error("Error capturing screenshot:", error);
+            alert("Error al capturar la imagen. Intente nuevamente.");
+        }
+    }
+  };
+
   // Aggregate average score by Area
   const areaStats: Record<string, { totalScore: number; count: number }> = {};
 
@@ -61,8 +82,18 @@ export const Dashboard: React.FC<DashboardProps> = ({ records, actions, onViewCo
   const pieColors = [getBarColor(averageScore), '#334155']; // Use dark slate for gap
 
   return (
-    <div className="space-y-8 mb-24 animate-fade-in">
+    <div className="space-y-8 mb-24 animate-fade-in" ref={dashboardRef}>
       
+      <div className="flex justify-between items-center">
+          <h2 className="text-xl font-bold text-gray-100 hidden sm:block">Dashboard Operativo</h2>
+          <button 
+            onClick={handleCaptureScreenshot}
+            className="flex items-center gap-2 bg-[#1e293b] border border-gray-700 text-gray-300 px-4 py-2 rounded-lg hover:bg-[#0f172a] hover:text-white transition-all text-sm ml-auto"
+          >
+            <Camera className="w-4 h-4" /> Capturar Pantalla
+          </button>
+      </div>
+
       {/* --- NEON DESIGN KPI CARDS --- */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         
