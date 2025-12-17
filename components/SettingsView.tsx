@@ -1,110 +1,204 @@
-import React, { useState } from 'react';
-import { AppConfig } from '../types';
-import { Plus, Trash2, Settings as SettingsIcon, Users, MapPin, HelpCircle } from 'lucide-react';
+import React, { useRef } from 'react';
+import { AuditRecord, Rating } from '../types';
+import { QUESTIONS } from '../constants';
+import { TrendingDown, TrendingUp, AlertOctagon, CheckCircle2, BarChart3, ArrowLeft, MapPin, Camera } from 'lucide-react';
+import html2canvas from 'html2canvas';
 
-interface SettingsViewProps {
-  config: AppConfig;
-  onUpdateConfig: (newConfig: AppConfig) => void;
+interface ConsolidatedViewProps {
+  records: AuditRecord[];
+  onBack: () => void;
 }
 
-export const SettingsView: React.FC<SettingsViewProps> = ({ config, onUpdateConfig }) => {
-  const [activeTab, setActiveTab] = useState<'areas' | 'questions'>('areas');
-  const [newArea, setNewArea] = useState('');
-  const [newResp, setNewResp] = useState('');
-  const [newQuestion, setNewQuestion] = useState('');
+export const ConsolidatedView: React.FC<ConsolidatedViewProps> = ({ records, onBack }) => {
+  const containerRef = useRef<HTMLDivElement>(null);
 
-  const handleAddArea = () => {
-    if (newArea.trim() && newResp.trim()) {
-      const areaName = newArea.trim().toUpperCase();
-      const respName = newResp.trim().toUpperCase();
-      
-      onUpdateConfig({ 
-        ...config, 
-        areas: [...config.areas, areaName],
-        responsables: [...config.responsables, { name: respName, area: areaName }]
-      });
-      setNewArea('');
-      setNewResp('');
-    } else {
-      alert("Ingrese tanto el Área como el Responsable.");
+  const handleCaptureScreenshot = async () => {
+    if (containerRef.current) {
+        try {
+            const canvas = await html2canvas(containerRef.current, {
+                backgroundColor: '#121212',
+                scale: 2 // High resolution
+            });
+            const link = document.createElement('a');
+            link.download = `Analisis_Consolidado_${new Date().toISOString().split('T')[0]}.png`;
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+        } catch (error) {
+            console.error("Error capturing screenshot:", error);
+            alert("Error al capturar la imagen. Intente nuevamente.");
+        }
     }
   };
 
-  const handleDeleteArea = (area: string) => {
-    if (confirm(`¿Eliminar área ${area}?`)) {
-      onUpdateConfig({ 
-          ...config, 
-          areas: config.areas.filter(a => a !== area),
-          responsables: config.responsables.filter(r => r.area !== area)
-      });
-    }
-  };
+  const questionStats = QUESTIONS.map(q => {
+    let totalPoints = 0;
+    let maxPoints = 0;
+    records.forEach(record => {
+      const answer = record.answers.find(a => a.questionId === q.id);
+      if (answer) {
+        if (answer.rating === Rating.SI) { totalPoints += 1; maxPoints += 1; }
+        else if (answer.rating === Rating.PARCIAL) { totalPoints += 0.5; maxPoints += 1; }
+        else if (answer.rating === Rating.NO) { maxPoints += 1; }
+      }
+    });
+    const percentage = maxPoints === 0 ? 0 : Math.round((totalPoints / maxPoints) * 100);
+    return { ...q, percentage, count: maxPoints };
+  });
 
-  const handleAddQuestion = () => {
-    if (newQuestion.trim()) {
-      const nextId = config.questions.length > 0 ? Math.max(...config.questions.map(q => q.id)) + 1 : 1;
-      onUpdateConfig({ ...config, questions: [...config.questions, { id: nextId, text: newQuestion.trim() }] });
-      setNewQuestion('');
+  const activeQuestions = questionStats.filter(q => q.count > 0);
+  const topLowestQuestions = [...activeQuestions].sort((a, b) => a.percentage - b.percentage).slice(0, 5);
+  const topHighestQuestions = [...activeQuestions].sort((a, b) => b.percentage - a.percentage).slice(0, 5);
+
+  const areaMap: Record<string, { totalScore: number; count: number }> = {};
+  records.forEach(r => {
+    if (!areaMap[r.area]) {
+      areaMap[r.area] = { totalScore: 0, count: 0 };
     }
-  };
+    areaMap[r.area].totalScore += r.score;
+    areaMap[r.area].count += 1;
+  });
+
+  const areaStats = Object.entries(areaMap).map(([area, stats]) => ({
+    name: area,
+    average: Math.round(stats.totalScore / stats.count),
+    count: stats.count
+  }));
+
+  const sortedAreas = [...areaStats].sort((a, b) => a.average - b.average);
+  const midPoint = Math.floor(sortedAreas.length / 2);
+  const topLowestAreas = sortedAreas.slice(0, midPoint).slice(0, 5);
+  const topHighestAreas = sortedAreas.slice(midPoint).reverse().slice(0, 5);
 
   return (
-    <div className="bg-[#1e293b] rounded-2xl shadow-2xl border border-gray-700 mb-24 overflow-hidden animate-fade-in">
-      <div className="p-6 bg-[#0f172a] border-b border-gray-800">
-        <h2 className="text-xl font-bold text-white flex items-center gap-3">
-          <SettingsIcon className="w-6 h-6 text-blue-500" /> Configuración del Sistema
-        </h2>
+    <div className="space-y-8 mb-24 animate-fade-in" ref={containerRef}>
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-4">
+          <button onClick={onBack} className="p-2 hover:bg-[#1e293b] rounded-full transition-colors text-gray-400 hover:text-white">
+            <ArrowLeft className="w-6 h-6" />
+          </button>
+          <div>
+            <h2 className="text-2xl font-bold text-gray-100">Análisis Consolidado</h2>
+            <p className="text-sm text-gray-500">Desglose de cumplimiento por áreas y preguntas críticas.</p>
+          </div>
+        </div>
+        <button 
+          onClick={handleCaptureScreenshot}
+          className="flex items-center gap-2 bg-[#1e293b] border border-gray-700 text-gray-300 px-4 py-2 rounded-lg hover:bg-[#0f172a] hover:text-white transition-all text-sm"
+        >
+          <Camera className="w-4 h-4" /> Capturar
+        </button>
       </div>
 
-      <div className="flex bg-[#0f172a]/50">
-        <button onClick={() => setActiveTab('areas')} className={`flex-1 py-4 text-sm font-bold transition-all ${activeTab === 'areas' ? 'text-blue-400 border-b-2 border-blue-500 bg-blue-500/10' : 'text-gray-500'}`}>ÁREAS Y RESPONSABLES</button>
-        <button onClick={() => setActiveTab('questions')} className={`flex-1 py-4 text-sm font-bold transition-all ${activeTab === 'questions' ? 'text-blue-400 border-b-2 border-blue-500 bg-blue-500/10' : 'text-gray-500'}`}>PREGUNTAS</button>
+      <div>
+        <h3 className="text-lg font-bold text-gray-200 mb-4 flex items-center gap-2">
+            <MapPin className="w-5 h-5 text-blue-500" /> Rendimiento por Áreas
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Worst Areas */}
+            <div className="bg-[#1e293b] rounded-xl shadow-lg border border-red-900/30 overflow-hidden">
+            <div className="p-4 border-b border-red-900/30 bg-red-900/10 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                <TrendingDown className="w-5 h-5 text-red-500" />
+                <h3 className="font-bold text-red-100">Áreas Críticas</h3>
+                </div>
+            </div>
+            <div className="p-4 space-y-4">
+                {topLowestAreas.length > 0 ? (
+                topLowestAreas.map((item) => (
+                    <div key={item.name} className="space-y-1">
+                    <div className="flex justify-between text-sm">
+                        <span className="font-medium text-gray-300">{item.name}</span>
+                        <span className="font-bold text-red-400">{item.average}%</span>
+                    </div>
+                    <div className="w-full bg-gray-800 rounded-full h-2">
+                        <div className="bg-red-500 h-2 rounded-full transition-all duration-500" style={{ width: `${item.average}%` }}></div>
+                    </div>
+                    </div>
+                ))
+                ) : <p className="text-gray-500 text-sm">Sin datos suficientes.</p>}
+            </div>
+            </div>
+
+            {/* Best Areas */}
+            <div className="bg-[#1e293b] rounded-xl shadow-lg border border-green-900/30 overflow-hidden">
+            <div className="p-4 border-b border-green-900/30 bg-green-900/10 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                <TrendingUp className="w-5 h-5 text-green-500" />
+                <h3 className="font-bold text-green-100">Áreas Destacadas</h3>
+                </div>
+            </div>
+            <div className="p-4 space-y-4">
+                {topHighestAreas.length > 0 ? (
+                topHighestAreas.map((item) => (
+                    <div key={item.name} className="space-y-1">
+                    <div className="flex justify-between text-sm">
+                        <span className="font-medium text-gray-300">{item.name}</span>
+                        <span className="font-bold text-green-400">{item.average}%</span>
+                    </div>
+                    <div className="w-full bg-gray-800 rounded-full h-2">
+                        <div className="bg-green-500 h-2 rounded-full transition-all duration-500" style={{ width: `${item.average}%` }}></div>
+                    </div>
+                    </div>
+                ))
+                ) : <p className="text-gray-500 text-sm">Sin datos suficientes.</p>}
+            </div>
+            </div>
+        </div>
       </div>
 
-      <div className="p-6">
-        {activeTab === 'areas' && (
-          <div className="space-y-6">
-            <div className="bg-[#0f172a] p-5 rounded-2xl border border-gray-700 space-y-4">
-              <h3 className="text-sm font-bold text-gray-400 uppercase tracking-widest">Nueva Configuración</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <input type="text" value={newArea} onChange={(e) => setNewArea(e.target.value)} placeholder="Nombre del Área" className="bg-[#1e293b] border border-gray-700 rounded-xl p-3 text-white focus:ring-2 focus:ring-blue-500 outline-none" />
-                <input type="text" value={newResp} onChange={(e) => setNewResp(e.target.value)} placeholder="Nombre del Responsable" className="bg-[#1e293b] border border-gray-700 rounded-xl p-3 text-white focus:ring-2 focus:ring-blue-500 outline-none" />
-              </div>
-              <button onClick={handleAddArea} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl transition-all flex items-center justify-center gap-2">
-                <Plus className="w-5 h-5" /> Registrar Área y Responsable
-              </button>
-            </div>
-            
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {config.areas.map((area) => (
-                <div key={area} className="bg-[#0f172a]/50 p-4 rounded-xl border border-gray-800 flex justify-between items-center group">
-                  <div>
-                    <p className="font-bold text-blue-400">{area}</p>
-                    <p className="text-xs text-gray-500 uppercase tracking-tighter">Responsable: {config.responsables.find(r => r.area === area)?.name || 'N/A'}</p>
-                  </div>
-                  <button onClick={() => handleDeleteArea(area)} className="p-2 text-gray-600 hover:text-red-400 hover:bg-red-400/10 rounded-lg transition-all"><Trash2 className="w-4 h-4" /></button>
+      <div>
+        <h3 className="text-lg font-bold text-gray-200 mb-4 flex items-center gap-2">
+            <AlertOctagon className="w-5 h-5 text-orange-500" /> Análisis de Hallazgos
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="bg-[#1e293b] rounded-xl shadow-lg border border-red-900/30 overflow-hidden">
+            <div className="p-4 border-b border-red-900/30 bg-red-900/10 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                <AlertOctagon className="w-5 h-5 text-red-500" />
+                <h3 className="font-bold text-red-100">Mayor Incumplimiento</h3>
                 </div>
-              ))}
             </div>
-          </div>
-        )}
+            <div className="p-4 space-y-5">
+                {topLowestQuestions.length > 0 ? (
+                topLowestQuestions.map((item) => (
+                    <div key={item.id} className="space-y-1">
+                    <div className="flex justify-between text-sm">
+                        <span className="font-medium text-gray-300 flex-1 pr-4" title={item.text}>{item.id}. {item.text}</span>
+                        <span className="font-bold text-red-400 flex-shrink-0">{item.percentage}%</span>
+                    </div>
+                    <div className="w-full bg-gray-800 rounded-full h-2.5">
+                        <div className="bg-red-500 h-2.5 rounded-full transition-all duration-500" style={{ width: `${item.percentage}%` }}></div>
+                    </div>
+                    </div>
+                ))
+                ) : <p className="text-center text-gray-500 py-4">No hay datos suficientes.</p>}
+            </div>
+            </div>
 
-        {activeTab === 'questions' && (
-          <div className="space-y-4">
-             <div className="flex gap-2 bg-[#0f172a] p-3 rounded-2xl border border-gray-700">
-              <input type="text" value={newQuestion} onChange={(e) => setNewQuestion(e.target.value)} placeholder="Escriba la nueva pregunta..." className="flex-1 bg-transparent text-white p-2 outline-none" />
-              <button onClick={handleAddQuestion} className="bg-blue-600 text-white px-6 py-2 rounded-xl font-bold hover:bg-blue-700">Agregar</button>
-            </div>
-            <div className="space-y-2">
-              {config.questions.map((q) => (
-                <div key={q.id} className="p-4 bg-[#0f172a]/50 border border-gray-800 rounded-xl flex justify-between items-center group">
-                  <span className="text-sm text-gray-300"><span className="text-blue-500 font-bold mr-2">{q.id}.</span> {q.text}</span>
-                  <button onClick={() => onUpdateConfig({...config, questions: config.questions.filter(qu => qu.id !== q.id)})} className="text-gray-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all"><Trash2 className="w-4 h-4" /></button>
+            <div className="bg-[#1e293b] rounded-xl shadow-lg border border-green-900/30 overflow-hidden">
+            <div className="p-4 border-b border-green-900/30 bg-green-900/10 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                <CheckCircle2 className="w-5 h-5 text-green-500" />
+                <h3 className="font-bold text-green-100">Mayor Cumplimiento</h3>
                 </div>
-              ))}
             </div>
-          </div>
-        )}
+            <div className="p-4 space-y-5">
+                {topHighestQuestions.length > 0 ? (
+                topHighestQuestions.map((item) => (
+                    <div key={item.id} className="space-y-1">
+                    <div className="flex justify-between text-sm">
+                        <span className="font-medium text-gray-300 flex-1 pr-4" title={item.text}>{item.id}. {item.text}</span>
+                        <span className="font-bold text-green-400 flex-shrink-0">{item.percentage}%</span>
+                    </div>
+                    <div className="w-full bg-gray-800 rounded-full h-2.5">
+                        <div className="bg-green-500 h-2.5 rounded-full transition-all duration-500" style={{ width: `${item.percentage}%` }}></div>
+                    </div>
+                    </div>
+                ))
+                ) : <p className="text-center text-gray-500 py-4">No hay datos suficientes.</p>}
+            </div>
+            </div>
+        </div>
       </div>
     </div>
   );
