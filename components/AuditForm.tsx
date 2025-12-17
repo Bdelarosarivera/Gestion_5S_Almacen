@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Rating, Answer, AuditRecord, AppConfig, ActionItem } from '../types';
-import { Save, User, MapPin, ClipboardCheck, Calendar, UserCircle } from 'lucide-react';
+import { Save, User, MapPin, ClipboardCheck, Calendar, UserCircle, X } from 'lucide-react';
 
 interface AuditFormProps {
   initialData?: AuditRecord | null;
@@ -41,7 +41,7 @@ export const AuditForm: React.FC<AuditFormProps> = ({ initialData, config, onSav
     if (!initialData || (initialData && area !== initialData.area)) {
        setResponsable(getResponsableForArea(area));
     }
-  }, [area]);
+  }, [area, initialData, config.responsables]);
 
   const getResponsableForArea = (areaName: string) => {
     const found = config.responsables.find(r => r.area === areaName);
@@ -67,8 +67,9 @@ export const AuditForm: React.FC<AuditFormProps> = ({ initialData, config, onSav
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!auditor.trim()) { alert("Ingrese el nombre del auditor"); return; }
-    
+    if (!auditor.trim()) { alert("Por favor ingrese el nombre del auditor"); return; }
+    localStorage.setItem('last_auditor_name', auditor);
+
     const answerList: Answer[] = Object.entries(answers).map(([qId, rating]) => ({
       questionId: parseInt(qId),
       rating: rating as Rating
@@ -85,7 +86,7 @@ export const AuditForm: React.FC<AuditFormProps> = ({ initialData, config, onSav
     const newActions: ActionItem[] = [];
     if (!initialData) { 
         answerList.forEach(ans => {
-            // LÓGICA: Solo generar plan si la respuesta es "NO"
+            // REQUERIMIENTO: Solo generar plan de acción para respuestas "NO"
             if (ans.rating === Rating.NO) {
                 const q = config.questions.find(q => q.id === ans.questionId);
                 if (q) {
@@ -98,7 +99,7 @@ export const AuditForm: React.FC<AuditFormProps> = ({ initialData, config, onSav
                         questionId: q.id,
                         questionText: q.text,
                         issueType: 'NO',
-                        suggestedAction: `Corregir hallazgo detectado: "${q.text}"`,
+                        suggestedAction: `Corregir hallazgo: "${q.text}"`,
                         responsable: responsable,
                         dueDate: dueDate.toISOString(),
                         status: 'PENDING',
@@ -125,13 +126,13 @@ export const AuditForm: React.FC<AuditFormProps> = ({ initialData, config, onSav
   return (
     <div className="max-w-4xl mx-auto mb-24 animate-fade-in">
       <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-bold text-gray-100">Auditoría 5S Operativa</h2>
+        <h2 className="text-2xl font-bold text-gray-100">Nueva Auditoría</h2>
         <div className={`px-4 py-2 rounded-xl font-bold text-lg border ${
             currentScore >= 90 ? 'bg-green-900/20 text-green-400 border-green-500/30' :
             currentScore >= 70 ? 'bg-yellow-900/20 text-yellow-400 border-yellow-500/30' :
             'bg-red-900/20 text-red-400 border-red-500/30'
         }`}>
-            {currentScore}% de Cumplimiento
+            {currentScore}% pts
         </div>
       </div>
 
@@ -140,14 +141,14 @@ export const AuditForm: React.FC<AuditFormProps> = ({ initialData, config, onSav
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
              <div className="space-y-2">
               <label className="text-xs font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2">
-                <Calendar className="w-4 h-4" /> Fecha
+                <Calendar className="w-4 h-4" /> Fecha de Auditoría
               </label>
               <input type="date" value={auditDate} onChange={(e) => setAuditDate(e.target.value)} className="w-full bg-[#0f172a] border border-gray-700 text-white rounded-xl p-3 focus:ring-2 focus:ring-blue-500 outline-none" required />
             </div>
 
             <div className="space-y-2">
               <label className="text-xs font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2">
-                <MapPin className="w-4 h-4 text-blue-400" /> Área
+                <MapPin className="w-4 h-4 text-blue-400" /> Área a Evaluar
               </label>
               <select value={area} onChange={(e) => setArea(e.target.value)} className="w-full bg-[#0f172a] border border-gray-700 text-white rounded-xl p-3 focus:ring-2 focus:ring-blue-500 outline-none">
                 {config.areas.map(a => <option key={a} value={a}>{a}</option>)}
@@ -156,16 +157,16 @@ export const AuditForm: React.FC<AuditFormProps> = ({ initialData, config, onSav
 
             <div className="space-y-2">
               <label className="text-xs font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2">
-                <UserCircle className="w-4 h-4 text-purple-400" /> Responsable
+                <UserCircle className="w-4 h-4 text-purple-400" /> Responsable del Área
               </label>
               <input type="text" value={responsable} readOnly className="w-full bg-[#0f172a]/50 border border-gray-800 text-gray-400 rounded-xl p-3 font-medium cursor-not-allowed" />
             </div>
 
             <div className="space-y-2">
               <label className="text-xs font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2">
-                <User className="w-4 h-4 text-gray-400" /> Auditor
+                <User className="w-4 h-4 text-gray-400" /> Nombre del Auditor
               </label>
-              <input type="text" value={auditor} onChange={(e) => setAuditor(e.target.value)} placeholder="Su nombre" className="w-full bg-[#0f172a] border border-gray-700 text-white rounded-xl p-3 focus:ring-2 focus:ring-blue-500 outline-none" required />
+              <input type="text" value={auditor} onChange={(e) => setAuditor(e.target.value)} placeholder="Su nombre completo" className="w-full bg-[#0f172a] border border-gray-700 text-white rounded-xl p-3 focus:ring-2 focus:ring-blue-500 outline-none" required />
             </div>
           </div>
         </div>
@@ -187,8 +188,10 @@ export const AuditForm: React.FC<AuditFormProps> = ({ initialData, config, onSav
           ))}
         </div>
 
-        <div className="flex justify-end gap-4 sticky bottom-20">
-          <button type="button" onClick={onCancel} className="px-6 py-3 bg-[#1e293b] border border-gray-700 text-gray-300 rounded-xl hover:bg-gray-800 font-bold transition-all">Cancelar</button>
+        <div className="flex justify-end gap-4 sticky bottom-20 z-10 p-2 bg-[#0f172a]/80 backdrop-blur rounded-2xl border border-gray-800 shadow-2xl">
+          <button type="button" onClick={onCancel} className="px-6 py-3 bg-[#1e293b] border border-gray-700 text-gray-300 rounded-xl hover:bg-gray-800 font-bold transition-all flex items-center gap-2">
+            <X className="w-5 h-5" /> Cancelar
+          </button>
           <button type="submit" className="px-8 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 font-bold shadow-lg shadow-blue-500/20 transition-all flex items-center gap-2">
             <Save className="w-5 h-5" /> Guardar Auditoría
           </button>
