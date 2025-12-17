@@ -1,5 +1,5 @@
 
-import React, { useRef } from 'react';
+import React, { useRef, useMemo } from 'react';
 import * as Recharts from 'recharts';
 import { AuditRecord, ActionItem } from '../types';
 import { 
@@ -28,11 +28,49 @@ const StatCard = ({ label, value, color }: { label: string, value: string | numb
     </div>
 );
 
-export const Dashboard: React.FC<DashboardProps> = ({ records, actions, onViewConsolidated, onViewActions, onGenerateDemo }) => {
+export const Dashboard: React.FC<DashboardProps> = ({ records = [], actions = [], onViewConsolidated, onViewActions, onGenerateDemo }) => {
   const dashboardRef = useRef<HTMLDivElement>(null);
 
-  // Manejo de estado vacío
-  if (!records || records.length === 0) {
+  // Aseguramos que records y actions siempre sean arrays antes de cualquier cálculo
+  const safeRecords = useMemo(() => Array.isArray(records) ? records : [], [records]);
+  const safeActions = useMemo(() => Array.isArray(actions) ? actions : [], [actions]);
+
+  // Cálculos protegidos
+  const stats = useMemo(() => {
+    if (safeRecords.length === 0) return null;
+
+    const areaMap: Record<string, { total: number; count: number }> = {};
+    safeRecords.forEach(r => {
+      const area = r.area || 'General';
+      if (!areaMap[area]) areaMap[area] = { total: 0, count: 0 };
+      areaMap[area].total += (Number(r.score) || 0);
+      areaMap[area].count += 1;
+    });
+
+    const calculatedChartData = Object.entries(areaMap)
+      .map(([name, s]) => ({
+        name,
+        score: Math.round(s.total / s.count),
+        audits: s.count
+      }))
+      .sort((a, b) => b.score - a.score);
+
+    const totalSum = safeRecords.reduce((acc, r) => acc + (Number(r.score) || 0), 0);
+    const avg = Math.round(totalSum / safeRecords.length);
+
+    return {
+      chartData: calculatedChartData,
+      averageScore: avg,
+      openActions: safeActions.filter(a => a && a.status !== 'CLOSED').length,
+      closedActions: safeActions.filter(a => a && a.status === 'CLOSED').length,
+      pieData: [
+        { name: 'Cumplimiento', value: avg },
+        { name: 'Restante', value: Math.max(0, 100 - avg) }
+      ]
+    };
+  }, [safeRecords, safeActions]);
+
+  if (!safeRecords || safeRecords.length === 0 || !stats) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] text-center space-y-6 animate-fade-in bg-[#1e293b] rounded-3xl border border-gray-800 p-10">
         <div className="bg-[#0f172a] p-8 rounded-full border border-gray-700 shadow-2xl">
@@ -40,43 +78,19 @@ export const Dashboard: React.FC<DashboardProps> = ({ records, actions, onViewCo
         </div>
         <div className="max-w-md">
           <h2 className="text-2xl font-bold text-gray-100 mb-2">Dashboard sin datos</h2>
-          <p className="text-gray-400 mb-6">Aún no se han realizado auditorías. Realice su primera inspección o cargue datos de prueba para activar las métricas.</p>
+          <p className="text-gray-400 mb-6">Realice su primera inspección para ver estadísticas o use el botón de ejemplo.</p>
           <button 
             onClick={onGenerateDemo}
             className="flex items-center gap-2 mx-auto bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl transition-all font-bold shadow-lg shadow-blue-500/20"
           >
-            <Database className="w-5 h-5" /> Cargar Datos de Ejemplo
+            <Database className="w-5 h-5" /> Generar Datos de Prueba
           </button>
         </div>
       </div>
     );
   }
 
-  // Cálculos seguros
-  const areaStats: Record<string, { totalScore: number; count: number }> = {};
-  records.forEach(r => {
-    if (!areaStats[r.area]) areaStats[r.area] = { totalScore: 0, count: 0 };
-    areaStats[r.area].totalScore += (r.score || 0);
-    areaStats[r.area].count += 1;
-  });
-
-  const chartData = Object.entries(areaStats)
-    .map(([area, stats]) => ({
-      name: area,
-      score: Math.round(stats.totalScore / stats.count),
-      audits: stats.count
-    }))
-    .sort((a, b) => b.score - a.score);
-
-  const averageScore = Math.round(records.reduce((acc, r) => acc + (r.score || 0), 0) / records.length);
-  const openActions = (actions || []).filter(a => a.status !== 'CLOSED').length;
-  const closedActions = (actions || []).filter(a => a.status === 'CLOSED').length;
-  
-  const chartHeight = Math.max(300, chartData.length * 40);
-  const pieData = [
-    { name: 'Cumplimiento', value: averageScore },
-    { name: 'Faltante', value: Math.max(0, 100 - averageScore) }
-  ];
+  const { chartData, averageScore, openActions, closedActions, pieData } = stats;
 
   const getBarColor = (score: number) => {
     if (score >= 90) return '#22c55e';
@@ -87,62 +101,64 @@ export const Dashboard: React.FC<DashboardProps> = ({ records, actions, onViewCo
   const handleCaptureScreenshot = async () => {
     if (!dashboardRef.current) return;
     try {
-        const canvas = await html2canvas(dashboardRef.current, { backgroundColor: '#0f172a', scale: 2 });
+        const canvas = await html2canvas(dashboardRef.current, { 
+          backgroundColor: '#0f172a', 
+          scale: 2,
+          useCORS: true 
+        });
         const link = document.createElement('a');
-        link.download = `Reporte_5S_${new Date().toLocaleDateString()}.png`;
+        link.download = `Reporte_5S_${new Date().toISOString().split('T')[0]}.png`;
         link.href = canvas.toDataURL('image/png');
         link.click();
-    } catch (e) { console.error(e); }
+    } catch (e) { console.error("Error en captura:", e); }
   };
+
+  const chartHeight = Math.max(300, chartData.length * 45);
 
   return (
     <div className="space-y-6 pb-20 animate-fade-in" ref={dashboardRef}>
-      {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
             <h2 className="text-2xl font-bold text-white tracking-tight flex items-center gap-2">
                 <TrendingUp className="text-blue-400" /> Panel de Indicadores
             </h2>
-            <p className="text-sm text-gray-500">Métricas de desempeño 5S en tiempo real</p>
+            <p className="text-sm text-gray-500">Métricas globales del programa 5S</p>
           </div>
           <button 
             onClick={handleCaptureScreenshot}
             className="flex items-center gap-2 bg-[#1e293b] border border-gray-700 hover:bg-gray-800 text-white px-4 py-2 rounded-xl transition-all font-bold text-sm"
           >
-            <Camera className="w-4 h-4" /> Exportar Reporte
+            <Camera className="w-4 h-4" /> Exportar Vista
           </button>
       </div>
 
-      {/* Stats Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <StatCard label="Auditorías" value={records.length} color="text-blue-400" />
-        <StatCard label="Puntaje Global" value={`${averageScore}%`} color={averageScore >= 80 ? 'text-green-400' : 'text-yellow-400'} />
-        <StatCard label="Pendientes" value={openActions} color="text-red-400" />
-        <StatCard label="Cerradas" value={closedActions} color="text-purple-400" />
+        <StatCard label="Auditorías" value={safeRecords.length} color="text-blue-400" />
+        <StatCard label="Puntaje Promedio" value={`${averageScore}%`} color={averageScore >= 80 ? 'text-green-400' : 'text-yellow-400'} />
+        <StatCard label="Hallazgos Pendientes" value={openActions} color="text-red-400" />
+        <StatCard label="Acciones Cerradas" value={closedActions} color="text-purple-400" />
       </div>
 
-      {/* Quick Actions */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <button onClick={onViewConsolidated} className="p-5 bg-[#1e293b] border border-orange-500/20 rounded-2xl hover:border-orange-500/50 transition-all flex justify-between items-center group text-left">
             <div>
-                <p className="text-orange-400 font-bold text-lg">Debilidades Críticas</p>
-                <p className="text-xs text-gray-500">Preguntas con menor puntaje</p>
+                <p className="text-orange-400 font-bold text-lg">Puntos Débiles</p>
+                <p className="text-xs text-gray-500">Preguntas con mayor incumplimiento</p>
             </div>
             <PieIcon className="w-8 h-8 text-orange-500/30 group-hover:text-orange-500 transition-colors" />
         </button>
         <button onClick={onViewActions} className="p-5 bg-[#1e293b] border border-blue-500/20 rounded-2xl hover:border-blue-500/50 transition-all flex justify-between items-center group text-left">
             <div>
-                <p className="text-blue-400 font-bold text-lg">Gestión de Hallazgos</p>
-                <p className="text-xs text-gray-500">Seguimiento de compromisos</p>
+                <p className="text-blue-400 font-bold text-lg">Planes de Mejora</p>
+                <p className="text-xs text-gray-500">Seguimiento a compromisos de área</p>
             </div>
             <ClipboardList className="w-8 h-8 text-blue-500/30 group-hover:text-blue-500 transition-colors" />
         </button>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Gráfico Circular de Cumplimiento */}
         <div className="bg-[#1e293b] rounded-2xl border border-gray-800 p-6 flex flex-col items-center justify-center min-h-[350px]">
-          <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-4">Cumplimiento Objetivo</h3>
+          <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-4">Estado de Cumplimiento</h3>
           <div className="relative w-full h-64">
               <Recharts.ResponsiveContainer width="100%" height="100%">
                   <Recharts.PieChart>
@@ -154,16 +170,15 @@ export const Dashboard: React.FC<DashboardProps> = ({ records, actions, onViewCo
               </Recharts.ResponsiveContainer>
               <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
                   <span className="text-5xl font-black text-white">{averageScore}%</span>
-                  <span className="text-[10px] text-gray-500 font-bold">META 95%</span>
+                  <span className="text-[10px] text-gray-500 font-bold uppercase">Meta de Calidad</span>
               </div>
           </div>
         </div>
 
-        {/* Ranking de Áreas */}
         <div className="lg:col-span-2 bg-[#1e293b] rounded-2xl border border-gray-800 overflow-hidden">
           <div className="p-4 border-b border-gray-800 bg-[#0f172a]/30 flex items-center gap-2">
               <Trophy className="w-5 h-5 text-yellow-500" />
-              <h3 className="text-sm font-bold text-white uppercase tracking-widest">Top Desempeño por Área</h3>
+              <h3 className="text-sm font-bold text-white uppercase tracking-widest">Top Desempeño por Áreas</h3>
           </div>
           <div className="p-2 overflow-y-auto max-h-[300px] divide-y divide-gray-800/50">
             {chartData.map((item, index) => (
@@ -172,15 +187,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ records, actions, onViewCo
                   <span className={`w-6 h-6 rounded flex items-center justify-center text-xs font-bold ${index < 3 ? 'bg-yellow-500/20 text-yellow-500' : 'bg-gray-800 text-gray-500'}`}>
                     {index + 1}
                   </span>
-                  <div>
-                    <span className="font-bold text-sm text-gray-100">{item.name}</span>
-                    <p className="text-[10px] text-gray-500">{item.audits} inspecciones</p>
-                  </div>
+                  <span className="font-bold text-sm text-gray-100">{item.name}</span>
                 </div>
                 <div className="flex items-center gap-3">
-                    <div className="w-24 bg-gray-800 h-1.5 rounded-full hidden sm:block overflow-hidden">
-                        <div className="h-full rounded-full" style={{ width: `${item.score}%`, backgroundColor: getBarColor(item.score) }}></div>
-                    </div>
                     <span className={`px-2 py-1 rounded-md text-[10px] font-bold border ${item.score >= 85 ? 'text-green-400 border-green-900/50 bg-green-900/10' : 'text-yellow-400 border-yellow-900/50 bg-yellow-900/10'}`}>
                         {item.score}%
                     </span>
@@ -191,18 +200,15 @@ export const Dashboard: React.FC<DashboardProps> = ({ records, actions, onViewCo
         </div>
       </div>
 
-      {/* Gráfico de Barras Horizontal */}
       <div className="bg-[#1e293b] rounded-2xl border border-gray-800 p-6">
-        <h3 className="text-sm font-bold text-white uppercase tracking-widest mb-6 flex items-center gap-2">
-            <LucideBarChart className="w-4 h-4 text-blue-400" /> Comparativa de Puntos (%)
-        </h3>
+        <h3 className="text-sm font-bold text-white uppercase tracking-widest mb-6">Gráfico de Comparación de Áreas (%)</h3>
         <div className="w-full" style={{ height: `${chartHeight}px` }}>
           <Recharts.ResponsiveContainer width="100%" height="100%">
-            <Recharts.BarChart data={chartData} layout="vertical" margin={{ left: 10, right: 40 }}>
+            <Recharts.BarChart data={chartData} layout="vertical" margin={{ left: 10, right: 40, top: 0, bottom: 0 }}>
               <Recharts.CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#334155" opacity={0.2} />
               <Recharts.XAxis type="number" domain={[0, 100]} hide />
               <Recharts.YAxis dataKey="name" type="category" width={110} tick={{fontSize: 10, fill: '#94a3b8', fontWeight: 'bold'}} axisLine={false} tickLine={false} />
-              <Recharts.Tooltip cursor={{fill: 'rgba(255,255,255,0.05)'}} contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #374151', borderRadius: '8px' }} />
+              <Recharts.Tooltip cursor={{fill: 'rgba(255,255,255,0.05)'}} contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #374151', borderRadius: '8px', color: '#fff' }} />
               <Recharts.Bar dataKey="score" radius={[0, 4, 4, 0]} barSize={20}>
                   {chartData.map((entry, index) => <Recharts.Cell key={index} fill={getBarColor(entry.score)} />)}
                   <Recharts.LabelList dataKey="score" position="right" formatter={(v: any) => `${v}%`} style={{ fontSize: '10px', fill: '#cbd5e1', fontWeight: 'bold' }} offset={10} />
