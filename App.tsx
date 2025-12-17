@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { ViewState, AuditRecord, ActionItem, AppConfig } from './types';
+import React, { useState, useEffect, useRef } from 'react';
+import { ViewState, AuditRecord, ActionItem, AppConfig, Rating } from './types';
 import { QUESTIONS, AREA_MAPPING, AREAS } from './constants';
 import { AuditForm } from './components/AuditForm';
 import { Dashboard } from './components/Dashboard';
@@ -10,16 +10,14 @@ import { ActionPlanView } from './components/ActionPlanView';
 import { SettingsView } from './components/SettingsView';
 import { 
   ClipboardList, 
-  LayoutDashboard, 
   Plus, 
   FileText, 
-  BarChart3, 
+  BarChart, 
   Settings, 
   Home, 
   Camera 
 } from 'lucide-react';
 
-// Initial default config based on constants
 const DEFAULT_CONFIG: AppConfig = {
   questions: QUESTIONS,
   areas: AREAS,
@@ -32,8 +30,9 @@ const App: React.FC = () => {
   const [actions, setActions] = useState<ActionItem[]>([]);
   const [config, setConfig] = useState<AppConfig>(DEFAULT_CONFIG);
   const [editingRecord, setEditingRecord] = useState<AuditRecord | null>(null);
+  const isInitialLoad = useRef(true);
 
-  // Load from local storage
+  // Carga inicial
   useEffect(() => {
     const savedRecords = localStorage.getItem('audit_records');
     const savedActions = localStorage.getItem('audit_actions');
@@ -44,19 +43,34 @@ const App: React.FC = () => {
     if (savedConfig) {
       try { 
         const parsedConfig = JSON.parse(savedConfig);
+        // Mezclar con nuevas preguntas si existen
         const existingIds = new Set(parsedConfig.questions.map((q: any) => q.id));
         const questionsToAdd = QUESTIONS.filter(q => !existingIds.has(q.id));
-        if (questionsToAdd.length > 0) {
-            parsedConfig.questions = [...parsedConfig.questions, ...questionsToAdd];
-        }
+        parsedConfig.questions = [...parsedConfig.questions, ...questionsToAdd];
         setConfig(parsedConfig); 
       } catch (e) { console.error(e); }
     }
+    isInitialLoad.current = false;
   }, []);
 
-  useEffect(() => { localStorage.setItem('audit_records', JSON.stringify(records)); }, [records]);
-  useEffect(() => { localStorage.setItem('audit_actions', JSON.stringify(actions)); }, [actions]);
-  useEffect(() => { localStorage.setItem('audit_config', JSON.stringify(config)); }, [config]);
+  // Guardado persistente (solo después de la carga inicial)
+  useEffect(() => {
+    if (!isInitialLoad.current) {
+      localStorage.setItem('audit_records', JSON.stringify(records));
+    }
+  }, [records]);
+
+  useEffect(() => {
+    if (!isInitialLoad.current) {
+      localStorage.setItem('audit_actions', JSON.stringify(actions));
+    }
+  }, [actions]);
+
+  useEffect(() => {
+    if (!isInitialLoad.current) {
+      localStorage.setItem('audit_config', JSON.stringify(config));
+    }
+  }, [config]);
 
   const handleSaveAudit = (record: AuditRecord, newActions: ActionItem[]) => {
     if (editingRecord) {
@@ -65,11 +79,22 @@ const App: React.FC = () => {
     } else {
       setRecords(prev => [record, ...prev]);
       setActions(prev => [...newActions, ...prev]);
-      if (newActions.length > 0) {
-        alert(`Se han generado ${newActions.length} acciones correctivas automáticamente.`);
-      }
     }
     setView('dashboard');
+  };
+
+  const loadDemoData = () => {
+    const demoRecords: AuditRecord[] = config.areas.slice(0, 5).map((area, idx) => ({
+        id: `demo-${idx}`,
+        area,
+        auditor: 'Demo Auditor',
+        responsable: config.responsables.find(r => r.area === area)?.name || 'Admin',
+        date: new Date().toISOString(),
+        score: 70 + Math.floor(Math.random() * 30),
+        answers: config.questions.map(q => ({ questionId: q.id, rating: Rating.SI }))
+    }));
+    setRecords(demoRecords);
+    alert("Datos de prueba cargados correctamente.");
   };
 
   const handleUpdateAction = (updatedAction: ActionItem) => {
@@ -86,64 +111,31 @@ const App: React.FC = () => {
   };
 
   const handleDelete = (id: string) => {
-    if (confirm("¿Está seguro de eliminar este registro? Esto NO eliminará las acciones generadas.")) {
+    if (confirm("¿Eliminar este registro?")) {
       setRecords(prev => prev.filter(r => r.id !== id));
     }
-  };
-
-  const handleCancelForm = () => {
-    setEditingRecord(null);
-    setView('home');
   };
 
   const renderContent = () => {
     switch (view) {
       case 'home':
         return (
-          <div className="flex flex-col items-center justify-center space-y-8 animate-fade-in py-8">
-            <h2 className="text-4xl font-bold text-blue-400 text-center mb-8 drop-shadow-lg">
+          <div className="flex flex-col items-center justify-center space-y-8 animate-fade-in py-8 text-center">
+            <h2 className="text-4xl font-bold text-blue-400 mb-8 drop-shadow-lg">
               Sistema de Auditoría 5S
             </h2>
-            
             <div className="flex flex-col gap-6 w-full max-w-md px-4">
-              <button
-                onClick={() => { setEditingRecord(null); setView('form'); }}
-                className="group relative flex flex-col items-center justify-center bg-[#1e293b] border border-green-500/30 text-green-400 p-6 rounded-2xl shadow-[0_0_15px_rgba(74,222,128,0.1)] hover:shadow-[0_0_25px_rgba(74,222,128,0.3)] hover:bg-[#0f172a] transition-all transform hover:-translate-y-1 h-32 w-full"
-              >
-                <Plus className="w-10 h-10 mb-2" strokeWidth={2.5} />
-                <span className="text-xl font-bold tracking-wide">Nueva Auditoría</span>
-              </button>
-
-              <button
-                onClick={() => setView('history')}
-                className="group relative flex flex-col items-center justify-center bg-[#1e293b] border border-blue-500/30 text-blue-400 p-6 rounded-2xl shadow-[0_0_15px_rgba(96,165,250,0.1)] hover:shadow-[0_0_25px_rgba(96,165,250,0.3)] hover:bg-[#0f172a] transition-all transform hover:-translate-y-1 h-32 w-full"
-              >
-                <ClipboardList className="w-10 h-10 mb-2" strokeWidth={2.5} />
-                <span className="text-xl font-bold tracking-wide">Ver Auditorías</span>
-              </button>
-
-              <button
-                onClick={() => setView('dashboard')}
-                className="group relative flex flex-col items-center justify-center bg-[#1e293b] border border-purple-500/30 text-purple-400 p-6 rounded-2xl shadow-[0_0_15px_rgba(192,132,252,0.1)] hover:shadow-[0_0_25px_rgba(192,132,252,0.3)] hover:bg-[#0f172a] transition-all transform hover:-translate-y-1 h-32 w-full"
-              >
-                <BarChart3 className="w-10 h-10 mb-2" strokeWidth={2.5} />
-                <span className="text-xl font-bold tracking-wide">Dashboard</span>
-              </button>
-
-              <button
-                onClick={() => setView('consolidated')}
-                className="group relative flex flex-col items-center justify-center bg-[#1e293b] border border-orange-500/30 text-orange-400 p-6 rounded-2xl shadow-[0_0_15px_rgba(251,146,60,0.1)] hover:shadow-[0_0_25px_rgba(251,146,60,0.3)] hover:bg-[#0f172a] transition-all transform hover:-translate-y-1 h-32 w-full"
-              >
-                <FileText className="w-10 h-10 mb-2" strokeWidth={2.5} />
-                <span className="text-xl font-bold tracking-wide">Consolidado</span>
-              </button>
+              <MenuButton label="Nueva Auditoría" onClick={() => { setEditingRecord(null); setView('form'); }} color="green" icon={<Plus className="w-8 h-8" />} />
+              <MenuButton label="Lista de Registros" onClick={() => setView('history')} color="blue" icon={<ClipboardList className="w-8 h-8" />} />
+              <MenuButton label="Dashboard" onClick={() => setView('dashboard')} color="purple" icon={<BarChart className="w-8 h-8" />} />
+              <MenuButton label="Análisis Consolidado" onClick={() => setView('consolidated')} color="orange" icon={<FileText className="w-8 h-8" />} />
             </div>
           </div>
         );
       case 'form':
-        return <AuditForm initialData={editingRecord} config={config} onSave={handleSaveAudit} onCancel={handleCancelForm} />;
+        return <AuditForm initialData={editingRecord} config={config} onSave={handleSaveAudit} onCancel={() => setView('home')} />;
       case 'dashboard':
-        return <Dashboard records={records} actions={actions} onViewConsolidated={() => setView('consolidated')} onViewActions={() => setView('actions')} />;
+        return <Dashboard records={records} actions={actions} onViewConsolidated={() => setView('consolidated')} onViewActions={() => setView('actions')} onGenerateDemo={loadDemoData} />;
       case 'history':
         return <History records={records} actions={actions} onEdit={handleEdit} onDelete={handleDelete} />;
       case 'ai-editor':
@@ -160,78 +152,46 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#121212] font-sans text-gray-100 selection:bg-blue-500 selection:text-white">
-      {/* Header - Dark Blue */}
+    <div className="min-h-screen bg-[#121212] font-sans text-gray-100">
       <header className="bg-[#0f172a] border-b border-gray-800 shadow-lg sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 lg:px-6 h-16 flex items-center justify-between">
-          <div 
-            className="flex items-center gap-3 cursor-pointer"
-            onClick={() => setView('home')}
-          >
-            <div className="bg-blue-600/20 p-2 rounded-lg backdrop-blur-sm border border-blue-500/30">
-               <ClipboardList className="w-5 h-5 text-blue-400" />
-            </div>
-            <h1 className="text-lg font-bold text-gray-100 tracking-wide hidden sm:block">
-              AuditCheck Pro
-            </h1>
+        <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
+          <div className="flex items-center gap-3 cursor-pointer" onClick={() => setView('home')}>
+            <ClipboardList className="w-6 h-6 text-blue-400" />
+            <h1 className="text-lg font-bold hidden sm:block">AuditCheck Pro</h1>
           </div>
-
-          <nav className="flex items-center gap-1 md:gap-4">
-            <NavButton label="Inicio" active={view === 'home'} onClick={() => setView('home')} icon={<Home className="w-4 h-4" />} />
-            <NavButton label="+ Nueva" active={view === 'form'} onClick={() => { setEditingRecord(null); setView('form'); }} icon={<Plus className="w-4 h-4" />} />
-            <NavButton label="Lista" active={view === 'history'} onClick={() => setView('history')} icon={<ClipboardList className="w-4 h-4" />} />
-            <NavButton label="Dashboard" active={view === 'dashboard'} onClick={() => setView('dashboard')} icon={<BarChart3 className="w-4 h-4" />} />
-            
-            <div className="h-6 w-px bg-gray-700 mx-1"></div>
-            
-            <button 
-                onClick={() => setView('settings')}
-                className={`p-2 rounded-lg transition-colors ${view === 'settings' ? 'bg-blue-600/20 text-blue-400' : 'text-gray-400 hover:text-white hover:bg-gray-800'}`}
-                title="Configuración"
-            >
-                <Settings className="w-5 h-5" />
-            </button>
-            <button 
-                onClick={() => setView('ai-editor')}
-                className={`p-2 rounded-lg transition-colors ${view === 'ai-editor' ? 'bg-purple-600/20 text-purple-400' : 'text-gray-400 hover:text-white hover:bg-gray-800'}`}
-                title="Cámara IA"
-            >
-                <Camera className="w-5 h-5" />
-            </button>
+          <nav className="flex items-center gap-2">
+            <NavIcon active={view === 'home'} onClick={() => setView('home')} icon={<Home className="w-5 h-5" />} title="Inicio" />
+            <NavIcon active={view === 'form'} onClick={() => { setEditingRecord(null); setView('form'); }} icon={<Plus className="w-5 h-5" />} title="Nueva" />
+            <NavIcon active={view === 'dashboard'} onClick={() => setView('dashboard')} icon={<BarChart className="w-5 h-5" />} title="Dashboard" />
+            <NavIcon active={view === 'settings'} onClick={() => setView('settings')} icon={<Settings className="w-5 h-5" />} title="Ajustes" />
+            <NavIcon active={view === 'ai-editor'} onClick={() => setView('ai-editor')} icon={<Camera className="w-5 h-5" />} title="IA" />
           </nav>
         </div>
       </header>
-
-      <main className="max-w-7xl mx-auto px-4 lg:px-6 py-6 pb-20">
-        {renderContent()}
-      </main>
-      
-      <footer className="py-6 text-center text-gray-600 text-sm border-t border-gray-800 mt-8">
-        &copy; {new Date().getFullYear()} AuditCheck Pro System
-      </footer>
+      <main className="max-w-7xl mx-auto px-4 py-6">{renderContent()}</main>
     </div>
   );
 };
 
-const NavButton: React.FC<{
-  label: string; 
-  active: boolean; 
-  onClick: () => void;
-  icon: React.ReactNode;
-}> = ({ label, active, onClick, icon }) => (
-  <button
-    onClick={onClick}
-    className={`
-      flex flex-col sm:flex-row items-center gap-1.5 px-3 py-2 rounded-lg transition-all duration-200
-      ${active 
-        ? 'bg-blue-600/20 text-blue-400 font-medium border border-blue-500/20' 
-        : 'text-gray-400 hover:bg-gray-800 hover:text-gray-200'
-      }
-    `}
-  >
-    {icon}
-    <span className="text-[10px] sm:text-sm">{label}</span>
-  </button>
+const MenuButton: React.FC<{label: string, onClick: () => void, color: string, icon: React.ReactNode}> = ({label, onClick, color, icon}) => {
+    const colors: any = {
+        green: 'border-green-500/30 text-green-400 shadow-green-500/10',
+        blue: 'border-blue-500/30 text-blue-400 shadow-blue-500/10',
+        purple: 'border-purple-500/30 text-purple-400 shadow-purple-500/10',
+        orange: 'border-orange-500/30 text-orange-400 shadow-orange-500/10'
+    };
+    return (
+        <button onClick={onClick} className={`flex flex-col items-center justify-center bg-[#1e293b] border p-6 rounded-2xl shadow-xl hover:bg-[#0f172a] transition-all transform hover:-translate-y-1 ${colors[color]}`}>
+            {icon}
+            <span className="text-lg font-bold mt-2">{label}</span>
+        </button>
+    );
+};
+
+const NavIcon: React.FC<{active: boolean, onClick: () => void, icon: React.ReactNode, title: string}> = ({active, onClick, icon, title}) => (
+    <button onClick={onClick} title={title} className={`p-2 rounded-lg transition-colors ${active ? 'bg-blue-600/20 text-blue-400' : 'text-gray-400 hover:bg-gray-800'}`}>
+        {icon}
+    </button>
 );
 
 export default App;
