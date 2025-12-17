@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useRef } from 'react';
 import { ViewState, AuditRecord, ActionItem, AppConfig, Rating } from './types';
 import { QUESTIONS, AREA_MAPPING, AREAS } from './constants';
@@ -25,7 +26,6 @@ const DEFAULT_CONFIG: AppConfig = {
   responsables: AREA_MAPPING.map(am => ({ name: am.responsable, area: am.area }))
 };
 
-// Componentes secundarios definidos fuera para evitar recreación
 const MenuButton = ({label, onClick, color, icon}: any) => {
     const colors: any = {
         green: 'border-green-500/30 text-green-400 shadow-green-500/10',
@@ -60,9 +60,9 @@ const App: React.FC = () => {
     const savedActions = localStorage.getItem('audit_actions');
     const savedConfig = localStorage.getItem('audit_config');
 
-    if (savedRecords) try { setRecords(JSON.parse(savedRecords)); } catch (e) { console.error(e); }
-    if (savedActions) try { setActions(JSON.parse(savedActions)); } catch (e) { console.error(e); }
-    if (savedConfig) try { setConfig(JSON.parse(savedConfig)); } catch (e) { console.error(e); }
+    if (savedRecords) try { setRecords(JSON.parse(savedRecords) || []); } catch (e) { console.error(e); setRecords([]); }
+    if (savedActions) try { setActions(JSON.parse(savedActions) || []); } catch (e) { console.error(e); setActions([]); }
+    if (savedConfig) try { setConfig(JSON.parse(savedConfig) || DEFAULT_CONFIG); } catch (e) { console.error(e); setConfig(DEFAULT_CONFIG); }
     
     isInitialLoad.current = false;
   }, []);
@@ -77,26 +77,29 @@ const App: React.FC = () => {
 
   const handleSaveAudit = (record: AuditRecord, newActions: ActionItem[]) => {
     if (editingRecord) {
-      setRecords(prev => prev.map(r => r.id === record.id ? record : r));
+      setRecords(prev => (prev || []).map(r => r.id === record.id ? record : r));
       setEditingRecord(null);
     } else {
-      setRecords(prev => [record, ...prev]);
-      setActions(prev => [...newActions, ...prev]);
+      setRecords(prev => [record, ...(prev || [])]);
+      if (newActions && newActions.length > 0) {
+        setActions(prev => [...newActions, ...(prev || [])]);
+      }
     }
-    setView('dashboard');
+    setTimeout(() => setView('dashboard'), 20);
   };
 
   const loadDemoData = () => {
-    const demoRecords: AuditRecord[] = config.areas.slice(0, 5).map((area, idx) => ({
+    const demoRecords: AuditRecord[] = config.areas.slice(0, 8).map((area, idx) => ({
         id: `demo-${idx}-${Date.now()}`,
-        area,
-        auditor: 'Demo Auditor',
-        responsable: config.responsables.find(r => r.area === area)?.name || 'Admin',
+        area: area,
+        auditor: 'Analista de Calidad',
+        responsable: config.responsables.find(r => r.area === area)?.name || 'Supervisor Gral',
         date: new Date().toISOString(),
-        score: 65 + Math.floor(Math.random() * 30),
+        score: 70 + Math.floor(Math.random() * 25),
         answers: config.questions.map(q => ({ questionId: q.id, rating: Rating.SI }))
     }));
-    setRecords(prev => [...demoRecords, ...prev]);
+    setRecords(demoRecords);
+    setView('dashboard');
   };
 
   const renderContent = () => {
