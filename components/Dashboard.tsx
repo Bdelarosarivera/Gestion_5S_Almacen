@@ -1,7 +1,7 @@
 import React, { useRef } from 'react';
 import { AuditRecord, ActionItem } from '../types';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, LabelList, PieChart, Pie, Legend } from 'recharts';
-import { Trophy, TrendingUp, AlertTriangle, CheckCircle, PieChart as PieChartIcon, ClipboardList, Camera } from 'lucide-react';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, LabelList, PieChart, Pie } from 'recharts';
+import { Trophy, TrendingUp, AlertTriangle, CheckCircle, PieChart as PieChartIcon, ClipboardList, Camera, PlusCircle } from 'lucide-react';
 import html2canvas from 'html2canvas';
 
 interface DashboardProps {
@@ -14,24 +14,38 @@ interface DashboardProps {
 export const Dashboard: React.FC<DashboardProps> = ({ records, actions, onViewConsolidated, onViewActions }) => {
   const dashboardRef = useRef<HTMLDivElement>(null);
 
+  // Si no hay registros, mostrar mensaje de bienvenida/vacío
+  if (!records || records.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] text-center space-y-6 animate-fade-in">
+        <div className="bg-[#1e293b] p-8 rounded-full border border-gray-700 shadow-2xl">
+          <BarChart3 className="w-16 h-16 text-gray-500" />
+        </div>
+        <div className="max-w-md">
+          <h2 className="text-2xl font-bold text-gray-100 mb-2">Dashboard sin datos</h2>
+          <p className="text-gray-400">Aún no se han realizado auditorías. Realiza tu primera inspección para ver las estadísticas de cumplimiento aquí.</p>
+        </div>
+      </div>
+    );
+  }
+
   const handleCaptureScreenshot = async () => {
     if (dashboardRef.current) {
         try {
-            // Desplazamos al inicio para capturar correctamente si hay scroll
             window.scrollTo(0, 0);
             const canvas = await html2canvas(dashboardRef.current, {
-                backgroundColor: '#0f172a', // Color del fondo de la app
-                scale: 2, // Doble resolución para gerencia
+                backgroundColor: '#121212',
+                scale: 2,
                 logging: false,
                 useCORS: true
             });
             const link = document.createElement('a');
-            link.download = `Reporte_Dashboard_5S_${new Date().toISOString().split('T')[0]}.png`;
+            link.download = `Dashboard_5S_${new Date().toLocaleDateString()}.png`;
             link.href = canvas.toDataURL('image/png');
             link.click();
         } catch (error) {
             console.error("Error capturando pantalla:", error);
-            alert("Hubo un error al generar la imagen. Asegúrese de que todas las gráficas estén cargadas.");
+            alert("Error al generar la imagen.");
         }
     }
   };
@@ -63,91 +77,127 @@ export const Dashboard: React.FC<DashboardProps> = ({ records, actions, onViewCo
     return '#ef4444';
   };
 
-  const averageScore = records.length > 0
-    ? Math.round(records.reduce((acc, r) => acc + r.score, 0) / records.length)
-    : 0;
-  
+  const averageScore = Math.round(records.reduce((acc, r) => acc + r.score, 0) / records.length);
   const openActions = actions.filter(a => a.status !== 'CLOSED').length;
   const closedActions = actions.filter(a => a.status === 'CLOSED').length;
-  const chartHeight = Math.max(300, chartData.length * 50);
+  const chartHeight = Math.max(350, chartData.length * 45);
 
   const pieData = [
     { name: 'Cumplimiento', value: averageScore },
-    { name: 'Brecha', value: 100 - averageScore }
+    { name: 'Faltante', value: 100 - averageScore }
   ];
-  const pieColors = [getBarColor(averageScore), '#1e293b'];
 
   return (
     <div className="space-y-8 mb-24 animate-fade-in" ref={dashboardRef}>
       
-      <div className="flex justify-between items-center p-2">
-          <h2 className="text-xl font-bold text-white uppercase tracking-tighter">Estado de Almacén</h2>
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <div>
+            <h2 className="text-2xl font-bold text-gray-100 tracking-tight">Panel de Indicadores</h2>
+            <p className="text-sm text-gray-500">Resumen ejecutivo del desempeño 5S</p>
+          </div>
           <button 
             onClick={handleCaptureScreenshot}
-            className="flex items-center gap-2 bg-[#1e293b] border border-gray-700 text-gray-300 px-4 py-2.5 rounded-xl hover:bg-[#0f172a] hover:text-white hover:border-blue-500/50 transition-all text-sm font-bold shadow-lg"
+            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl transition-all font-bold shadow-lg shadow-blue-500/20"
           >
-            <Camera className="w-4 h-4" /> Capturar para Gerencia
+            <Camera className="w-4 h-4" /> Exportar Imagen
           </button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatCard label="AUDITORÍAS" value={records.length} color="cyan" icon={<CheckCircle />} />
-        <StatCard label="PROMEDIO" value={`${averageScore}%`} color={averageScore >= 90 ? 'green' : averageScore >= 70 ? 'yellow' : 'red'} icon={<TrendingUp />} />
-        <StatCard label="PENDIENTES" value={openActions} color="orange" icon={<AlertTriangle />} onClick={onViewActions} />
-        <StatCard label="CERRADAS" value={closedActions} color="purple" icon={<CheckCircle />} />
+      {/* Mini Stats */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="bg-[#1e293b] p-4 rounded-2xl border border-gray-800">
+            <p className="text-[10px] font-bold text-gray-500 uppercase">Auditorías</p>
+            <p className="text-2xl font-black text-white">{records.length}</p>
+        </div>
+        <div className="bg-[#1e293b] p-4 rounded-2xl border border-gray-800">
+            <p className="text-[10px] font-bold text-gray-500 uppercase">Promedio</p>
+            <p className={`text-2xl font-black ${averageScore >= 80 ? 'text-green-400' : 'text-yellow-400'}`}>{averageScore}%</p>
+        </div>
+        <div className="bg-[#1e293b] p-4 rounded-2xl border border-gray-800">
+            <p className="text-[10px] font-bold text-gray-500 uppercase">Acciones Pend.</p>
+            <p className="text-2xl font-black text-red-400">{openActions}</p>
+        </div>
+        <div className="bg-[#1e293b] p-4 rounded-2xl border border-gray-800">
+            <p className="text-[10px] font-bold text-gray-500 uppercase">Cerradas</p>
+            <p className="text-2xl font-black text-purple-400">{closedActions}</p>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <button onClick={onViewConsolidated} className="w-full py-5 px-6 bg-[#1e293b] hover:bg-[#0f172a] text-gray-200 border border-gray-700 rounded-2xl shadow-xl transition-all flex items-center justify-center gap-3 font-bold group">
-            <PieChartIcon className="w-6 h-6 text-orange-400 group-hover:scale-110 transition-transform" /> Análisis Consolidado
+        <button onClick={onViewConsolidated} className="flex items-center justify-between p-6 bg-gradient-to-br from-[#1e293b] to-[#0f172a] border border-orange-500/20 rounded-2xl hover:border-orange-500/50 transition-all group shadow-xl">
+            <div className="text-left">
+                <p className="text-orange-400 font-bold text-lg">Análisis de Hallazgos</p>
+                <p className="text-xs text-gray-500">Ver preguntas con más fallos</p>
+            </div>
+            <PieChartIcon className="w-8 h-8 text-orange-500/50 group-hover:text-orange-500 transition-colors" />
         </button>
-        <button onClick={onViewActions} className="w-full py-5 px-6 bg-[#1e293b] hover:bg-[#0f172a] text-gray-200 border border-gray-700 rounded-2xl shadow-xl transition-all flex items-center justify-center gap-3 font-bold group">
-            <ClipboardList className="w-6 h-6 text-blue-400 group-hover:scale-110 transition-transform" /> Planes de Acción
+        <button onClick={onViewActions} className="flex items-center justify-between p-6 bg-gradient-to-br from-[#1e293b] to-[#0f172a] border border-blue-500/20 rounded-2xl hover:border-blue-500/50 transition-all group shadow-xl">
+            <div className="text-left">
+                <p className="text-blue-400 font-bold text-lg">Planes de Acción</p>
+                <p className="text-xs text-gray-500">Seguimiento de correctivas</p>
+            </div>
+            <ClipboardList className="w-8 h-8 text-blue-500/50 group-hover:text-blue-500 transition-colors" />
         </button>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="bg-[#1e293b] rounded-2xl shadow-xl border border-gray-800 p-6 flex flex-col items-center">
-          <h3 className="text-sm font-bold text-gray-400 uppercase tracking-widest mb-6 w-full text-center">Cumplimiento Global</h3>
-          <div className="relative w-full aspect-square max-w-[280px]">
+        {/* KPI Circular */}
+        <div className="bg-[#1e293b] rounded-2xl shadow-xl border border-gray-800 p-6 flex flex-col items-center justify-center min-h-[350px]">
+          <h3 className="text-xs font-bold text-gray-500 uppercase tracking-[0.2em] mb-4">Cumplimiento Total</h3>
+          <div className="relative w-full h-64">
               <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
-                      <Pie data={pieData} cx="50%" cy="50%" innerRadius={70} outerRadius={95} paddingAngle={8} dataKey="value" startAngle={90} endAngle={-270} stroke="none">
-                          <Cell fill={pieColors[0]} />
-                          <Cell fill={pieColors[1]} />
+                      <Pie 
+                        data={pieData} 
+                        cx="50%" cy="50%" 
+                        innerRadius={65} 
+                        outerRadius={90} 
+                        dataKey="value" 
+                        stroke="none"
+                        startAngle={90}
+                        endAngle={-270}
+                      >
+                          <Cell fill={getBarColor(averageScore)} />
+                          <Cell fill="#0f172a" />
                       </Pie>
-                      <Tooltip contentStyle={{ borderRadius: '12px', border: '1px solid #374151', backgroundColor: '#0f172a', color: '#f3f4f6' }} />
                   </PieChart>
               </ResponsiveContainer>
-              <div className="absolute inset-0 flex items-center justify-center flex-col pointer-events-none mb-2">
-                  <span className="text-4xl font-black text-white">{averageScore}%</span>
-                  <span className="text-[10px] text-gray-500 font-bold uppercase tracking-tighter">KPI GLOBAL</span>
+              <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                  <span className="text-5xl font-black text-white">{averageScore}%</span>
+                  <span className="text-[10px] text-gray-500 font-bold uppercase">Objetivo 95%</span>
               </div>
           </div>
         </div>
 
-        <div className="lg:col-span-2 bg-[#1e293b] rounded-2xl shadow-xl border border-gray-800 overflow-hidden flex flex-col">
-          <div className="p-5 border-b border-gray-800 flex items-center gap-2 bg-[#0f172a]/50">
-            <Trophy className="w-5 h-5 text-yellow-500" />
-            <h3 className="text-sm font-bold text-white uppercase tracking-widest">Ranking por Áreas</h3>
+        {/* Ranking List */}
+        <div className="lg:col-span-2 bg-[#1e293b] rounded-2xl shadow-xl border border-gray-800 overflow-hidden">
+          <div className="p-5 border-b border-gray-800 flex items-center justify-between bg-[#0f172a]/30">
+            <div className="flex items-center gap-2">
+                <Trophy className="w-5 h-5 text-yellow-500" />
+                <h3 className="text-sm font-bold text-white uppercase tracking-widest">Ranking de Áreas</h3>
+            </div>
           </div>
-          <div className="flex-1 overflow-y-auto max-h-[400px] divide-y divide-gray-800">
+          <div className="overflow-y-auto max-h-[350px] divide-y divide-gray-800/50">
             {chartData.map((item, index) => (
-              <div key={item.name} className="p-4 flex items-center justify-between hover:bg-[#0f172a]/50 transition-colors">
+              <div key={item.name} className="p-4 flex items-center justify-between hover:bg-blue-500/5 transition-colors">
                 <div className="flex items-center gap-4">
-                  <span className={`w-8 h-8 flex items-center justify-center rounded-lg font-bold text-xs border ${
-                    index === 0 ? 'bg-yellow-500/20 text-yellow-400 border-yellow-500/50' : 'bg-gray-800 text-gray-500 border-gray-700'
-                  }`}>{index + 1}</span>
+                  <div className={`w-7 h-7 flex items-center justify-center rounded-lg text-[10px] font-black border ${
+                    index === 0 ? 'bg-yellow-500 text-black border-yellow-400' : 'bg-gray-800 text-gray-500 border-gray-700'
+                  }`}>
+                    {index + 1}
+                  </div>
                   <div>
-                    <p className="font-bold text-gray-100 text-sm">{item.name}</p>
-                    <p className="text-[10px] text-gray-500 font-bold">{item.audits} EVALUACIONES</p>
+                    <p className="font-bold text-gray-100 text-sm leading-tight">{item.name}</p>
+                    <p className="text-[10px] text-gray-500 font-medium">{item.audits} auditorías realizadas</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-4">
-                  <div className="w-24 h-2 bg-gray-800 rounded-full hidden sm:block">
-                    <div className="h-full rounded-full transition-all duration-700" style={{ width: `${item.score}%`, backgroundColor: getBarColor(item.score) }} />
+                <div className="flex items-center gap-3">
+                  <div className="w-16 h-1.5 bg-gray-800 rounded-full hidden sm:block">
+                    <div className="h-full rounded-full" style={{ width: `${item.score}%`, backgroundColor: getBarColor(item.score) }} />
                   </div>
-                  <span className={`px-3 py-1 rounded-lg text-xs font-black border ${getScoreColor(item.score)}`}>{item.score}%</span>
+                  <span className={`px-2 py-0.5 rounded-md text-[11px] font-bold border ${getScoreColor(item.score)}`}>
+                    {item.score}%
+                  </span>
                 </div>
               </div>
             ))}
@@ -155,18 +205,24 @@ export const Dashboard: React.FC<DashboardProps> = ({ records, actions, onViewCo
         </div>
       </div>
 
+      {/* Bar Chart Tendency */}
       <div className="bg-[#1e293b] rounded-2xl shadow-xl border border-gray-800 p-6">
-        <h3 className="text-sm font-bold text-white uppercase tracking-widest mb-8">Tendencia de Cumplimiento</h3>
+        <h3 className="text-sm font-bold text-white uppercase tracking-widest mb-8 flex items-center gap-2">
+            <BarChart3 className="w-4 h-4 text-blue-400" /> Comparativa de Cumplimiento (%)
+        </h3>
         <div className="w-full" style={{ height: `${chartHeight}px` }}>
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={chartData} layout="vertical" margin={{ left: 20, right: 40 }}>
-              <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#334155" />
+            <BarChart data={chartData} layout="vertical" margin={{ left: 10, right: 40 }}>
+              <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#334155" opacity={0.3} />
               <XAxis type="number" domain={[0, 100]} hide />
-              <YAxis dataKey="name" type="category" width={110} tick={{fontSize: 10, fontWeight: 'bold', fill: '#94a3b8'}} />
-              <Tooltip cursor={{fill: '#0f172a', opacity: 0.4}} contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #374151', borderRadius: '8px' }} />
-              <Bar dataKey="score" radius={[0, 10, 10, 0]} barSize={25}>
+              <YAxis dataKey="name" type="category" width={100} tick={{fontSize: 10, fontWeight: '600', fill: '#94a3b8'}} axisLine={false} tickLine={false} />
+              <Tooltip 
+                cursor={{fill: '#0f172a', opacity: 0.2}} 
+                contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #374151', borderRadius: '12px', color: '#fff' }} 
+              />
+              <Bar dataKey="score" radius={[0, 8, 8, 0]} barSize={22}>
                   {chartData.map((entry, index) => <Cell key={index} fill={getBarColor(entry.score)} />)}
-                  <LabelList dataKey="score" position="right" formatter={(v: any) => `${v}%`} style={{ fontSize: '10px', fontWeight: '900', fill: '#f1f5f9' }} />
+                  <LabelList dataKey="score" position="right" formatter={(v: any) => `${v}%`} style={{ fontSize: '11px', fontWeight: '800', fill: '#cbd5e1' }} offset={10} />
               </Bar>
             </BarChart>
           </ResponsiveContainer>
@@ -176,24 +232,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ records, actions, onViewCo
   );
 };
 
-const StatCard: React.FC<{ label: string; value: string | number; color: string; icon: React.ReactNode; onClick?: () => void }> = ({ label, value, color, icon, onClick }) => {
-    const colors: any = {
-        cyan: 'border-cyan-500/30 text-cyan-400 shadow-cyan-500/10',
-        green: 'border-green-500/30 text-green-400 shadow-green-500/10',
-        yellow: 'border-yellow-500/30 text-yellow-400 shadow-yellow-500/10',
-        red: 'border-red-500/30 text-red-400 shadow-red-500/10',
-        orange: 'border-orange-500/30 text-orange-400 shadow-orange-500/10',
-        purple: 'border-purple-500/30 text-purple-400 shadow-purple-500/10',
-    };
-    return (
-        <div onClick={onClick} className={`bg-[#0f172a] rounded-3xl border p-6 flex flex-col justify-between h-44 transition-all hover:-translate-y-1 shadow-2xl ${colors[color]} ${onClick ? 'cursor-pointer hover:border-white/20' : ''}`}>
-            <div className="flex justify-between items-start">
-                <span className="text-[10px] font-black tracking-[0.2em] text-gray-500">{label}</span>
-                <div className="opacity-50">{icon}</div>
-            </div>
-            <div className="flex-1 flex items-center justify-center">
-                <span className="text-5xl font-black drop-shadow-md">{value}</span>
-            </div>
-        </div>
-    );
-};
+// Icono auxiliar faltante
+const BarChart3 = ({ className }: { className?: string }) => (
+    <svg className={className} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg>
+);
