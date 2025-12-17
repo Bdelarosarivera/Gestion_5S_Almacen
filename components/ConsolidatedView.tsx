@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import { AuditRecord, Rating } from '../types';
 import { QUESTIONS } from '../constants';
-import { TrendingDown, TrendingUp, AlertOctagon, CheckCircle2, BarChart3, ArrowLeft, MapPin } from 'lucide-react';
+import { TrendingDown, TrendingUp, AlertOctagon, CheckCircle2, BarChart3, ArrowLeft, MapPin, Camera } from 'lucide-react';
+import html2canvas from 'html2canvas';
 
 interface ConsolidatedViewProps {
   records: AuditRecord[];
@@ -9,6 +10,26 @@ interface ConsolidatedViewProps {
 }
 
 export const ConsolidatedView: React.FC<ConsolidatedViewProps> = ({ records, onBack }) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const handleCaptureScreenshot = async () => {
+    if (containerRef.current) {
+        try {
+            const canvas = await html2canvas(containerRef.current, {
+                backgroundColor: '#121212',
+                scale: 2 // High resolution
+            });
+            const link = document.createElement('a');
+            link.download = `Analisis_Consolidado_${new Date().toISOString().split('T')[0]}.png`;
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+        } catch (error) {
+            console.error("Error capturing screenshot:", error);
+            alert("Error al capturar la imagen. Intente nuevamente.");
+        }
+    }
+  };
+
   const questionStats = QUESTIONS.map(q => {
     let totalPoints = 0;
     let maxPoints = 0;
@@ -49,15 +70,23 @@ export const ConsolidatedView: React.FC<ConsolidatedViewProps> = ({ records, onB
   const topHighestAreas = sortedAreas.slice(midPoint).reverse().slice(0, 5);
 
   return (
-    <div className="space-y-8 mb-24 animate-fade-in">
-      <div className="flex items-center gap-4 mb-6">
-        <button onClick={onBack} className="p-2 hover:bg-[#1e293b] rounded-full transition-colors text-gray-400 hover:text-white">
-          <ArrowLeft className="w-6 h-6" />
-        </button>
-        <div>
-          <h2 className="text-2xl font-bold text-gray-100">Análisis Consolidado</h2>
-          <p className="text-sm text-gray-500">Desglose de cumplimiento por áreas y preguntas críticas.</p>
+    <div className="space-y-8 mb-24 animate-fade-in" ref={containerRef}>
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-4">
+          <button onClick={onBack} className="p-2 hover:bg-[#1e293b] rounded-full transition-colors text-gray-400 hover:text-white">
+            <ArrowLeft className="w-6 h-6" />
+          </button>
+          <div>
+            <h2 className="text-2xl font-bold text-gray-100">Análisis Consolidado</h2>
+            <p className="text-sm text-gray-500">Desglose de cumplimiento por áreas y preguntas críticas.</p>
+          </div>
         </div>
+        <button 
+          onClick={handleCaptureScreenshot}
+          className="flex items-center gap-2 bg-[#1e293b] border border-gray-700 text-gray-300 px-4 py-2 rounded-lg hover:bg-[#0f172a] hover:text-white transition-all text-sm"
+        >
+          <Camera className="w-4 h-4" /> Capturar
+        </button>
       </div>
 
       <div>
