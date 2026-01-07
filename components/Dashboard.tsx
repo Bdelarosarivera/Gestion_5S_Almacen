@@ -250,4 +250,3 @@ export const Dashboard: React.FC<DashboardProps> = ({ records = [], actions = []
     </div>
   );
 };
-
