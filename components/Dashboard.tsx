@@ -37,8 +37,15 @@ export const Dashboard: React.FC<DashboardProps> = ({ records = [], actions = []
   const dashboardRef = useRef<HTMLDivElement>(null);
 
   // Asegurar siempre un array válido para evitar fallos de iteración
-  const safeRecords = useMemo(() => Array.isArray(records) ? records : [], [records]);
-  const safeActions = useMemo(() => Array.isArray(actions) ? actions : [], [actions]);
+  const safeRecords = useMemo(() => {
+    if (!records) return [];
+    return Array.isArray(records) ? records : [];
+  }, [records]);
+
+  const safeActions = useMemo(() => {
+    if (!actions) return [];
+    return Array.isArray(actions) ? actions : [];
+  }, [actions]);
 
   const stats = useMemo(() => {
     if (safeRecords.length === 0) return null;
@@ -47,11 +54,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ records = [], actions = []
       const areaMap: Record<string, { total: number; count: number }> = {};
       
       safeRecords.forEach(r => {
+        if (!r) return;
         const areaName = r.area || 'Sin Área';
         if (!areaMap[areaName]) areaMap[areaName] = { total: 0, count: 0 };
         
         // Validación estricta del puntaje para evitar NaN
-        const scoreVal = Number(r.score);
+        const scoreVal = parseFloat(String(r.score));
         const validScore = isNaN(scoreVal) ? 0 : scoreVal;
         
         areaMap[areaName].total += validScore;
@@ -67,7 +75,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ records = [], actions = []
         .sort((a, b) => b.score - a.score);
 
       const totalSum = safeRecords.reduce((acc, r) => {
-          const val = Number(r.score);
+          if (!r) return acc;
+          const val = parseFloat(String(r.score));
           return acc + (isNaN(val) ? 0 : val);
       }, 0);
       
@@ -171,11 +180,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ records = [], actions = []
         </button>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6" key={`charts-container-${safeRecords.length}`}>
         <div className="bg-[#1e293b] rounded-2xl border border-gray-800 p-8 flex flex-col items-center justify-center min-h-[400px]">
           <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-8">Nivel de Calidad</h3>
           <div className="relative w-full h-72">
-              <Recharts.ResponsiveContainer width="100%" height="100%" key={`pie-${safeRecords.length}`}>
+              <Recharts.ResponsiveContainer width="100%" height="100%">
                   <Recharts.PieChart>
                       <Recharts.Pie 
                         data={pieData} 
@@ -232,7 +241,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ records = [], actions = []
       <div className="bg-[#1e293b] rounded-2xl border border-gray-800 p-8 shadow-2xl">
         <h3 className="text-sm font-bold text-white uppercase tracking-widest mb-8">Comparativa Visual (%)</h3>
         <div className="w-full" style={{ height: `${Math.max(300, chartData.length * 50)}px` }}>
-          <Recharts.ResponsiveContainer width="100%" height="100%" key={`bar-${safeRecords.length}`}>
+          <Recharts.ResponsiveContainer width="100%" height="100%">
             <Recharts.BarChart data={chartData} layout="vertical" margin={{ left: 10, right: 45 }}>
               <Recharts.XAxis type="number" domain={[0, 100]} hide />
               <Recharts.YAxis dataKey="name" type="category" width={120} tick={{fontSize: 11, fill: '#94a3b8', fontWeight: 600}} axisLine={false} tickLine={false} />
