@@ -36,16 +36,9 @@ const StatCard = ({ label, value, color, icon: Icon }: any) => (
 export const Dashboard: React.FC<DashboardProps> = ({ records = [], actions = [], onViewConsolidated, onViewActions, onGenerateDemo }) => {
   const dashboardRef = useRef<HTMLDivElement>(null);
 
-  // Asegurar siempre un array válido para evitar fallos de iteración
-  const safeRecords = useMemo(() => {
-    if (!records) return [];
-    return Array.isArray(records) ? records : [];
-  }, [records]);
-
-  const safeActions = useMemo(() => {
-    if (!actions) return [];
-    return Array.isArray(actions) ? actions : [];
-  }, [actions]);
+  // Garantizar arrays válidos
+  const safeRecords = useMemo(() => Array.isArray(records) ? records : [], [records]);
+  const safeActions = useMemo(() => Array.isArray(actions) ? actions : [], [actions]);
 
   const stats = useMemo(() => {
     if (safeRecords.length === 0) return null;
@@ -58,7 +51,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ records = [], actions = []
         const areaName = r.area || 'Sin Área';
         if (!areaMap[areaName]) areaMap[areaName] = { total: 0, count: 0 };
         
-        // Validación estricta del puntaje para evitar NaN
+        // Validación estricta de puntaje
         const scoreVal = parseFloat(String(r.score));
         const validScore = isNaN(scoreVal) ? 0 : scoreVal;
         
@@ -94,7 +87,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ records = [], actions = []
         ]
       };
     } catch (e) {
-      console.error("Dashboard calculation error:", e);
+      console.error("Fallo crítico en cálculo de dashboard:", e);
       return null;
     }
   }, [safeRecords, safeActions]);
@@ -136,10 +129,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ records = [], actions = []
           logging: false
         });
         const link = document.createElement('a');
-        link.download = `Status_AuditCheck_${new Date().toISOString().split('T')[0]}.png`;
+        link.download = `Reporte_Calidad_${new Date().toISOString().split('T')[0]}.png`;
         link.href = canvas.toDataURL('image/png');
         link.click();
-    } catch (e) { console.error("Screenshot error:", e); }
+    } catch (e) { console.error("Error al exportar reporte:", e); }
   };
 
   return (
@@ -149,43 +142,43 @@ export const Dashboard: React.FC<DashboardProps> = ({ records = [], actions = []
             <h2 className="text-3xl font-black text-white flex items-center gap-3 tracking-tighter">
                 <TrendingUp className="text-blue-500" /> DASHBOARD DE PLANTA
             </h2>
-            <p className="text-sm text-gray-500 font-medium italic">Consolidado de auditorías y planes de mejora</p>
+            <p className="text-sm text-gray-500 font-medium italic">Consolidado de cumplimiento operativo</p>
           </div>
           <button onClick={handleCaptureScreenshot} className="flex items-center gap-2 bg-[#1e293b] border border-gray-700 hover:bg-gray-800 text-white px-5 py-2.5 rounded-xl transition-all font-bold text-xs uppercase tracking-widest">
-            <Camera className="w-4 h-4" /> Capturar Informe
+            <Camera className="w-4 h-4" /> Exportar Pantalla
           </button>
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard label="Auditorías" value={safeRecords.length} color="text-blue-400" icon={ClipboardList} />
-        <StatCard label="Promedio Planta" value={`${averageScore}%`} color={averageScore >= 80 ? 'text-green-400' : 'text-yellow-400'} icon={Target} />
+        <StatCard label="Auditorías Realizadas" value={safeRecords.length} color="text-blue-400" icon={ClipboardList} />
+        <StatCard label="Puntaje Global" value={`${averageScore}%`} color={averageScore >= 80 ? 'text-green-400' : 'text-yellow-400'} icon={Target} />
         <StatCard label="Hallazgos Pendientes" value={openActions} color="text-red-400" icon={AlertTriangle} />
-        <StatCard label="Cierres Exitosos" value={closedActions} color="text-purple-400" icon={Trophy} />
+        <StatCard label="Planes Cerrados" value={closedActions} color="text-purple-400" icon={Trophy} />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <button onClick={onViewConsolidated} className="p-6 bg-gradient-to-br from-[#1e293b] to-[#0f172a] border border-orange-500/20 rounded-2xl hover:border-orange-500/50 transition-all flex justify-between items-center group text-left shadow-lg">
             <div>
                 <p className="text-orange-400 font-black text-xl mb-1 italic">ANÁLISIS DE FALLOS</p>
-                <p className="text-xs text-gray-500 font-medium">Preguntas con menor nivel de cumplimiento</p>
+                <p className="text-xs text-gray-500 font-medium">Puntos críticos con menor cumplimiento</p>
             </div>
             <PieIcon className="w-10 h-10 text-orange-500/20 group-hover:text-orange-500 transition-colors" />
         </button>
         <button onClick={onViewActions} className="p-6 bg-gradient-to-br from-[#1e293b] to-[#0f172a] border border-blue-500/20 rounded-2xl hover:border-blue-500/50 transition-all flex justify-between items-center group text-left shadow-lg">
             <div>
                 <p className="text-blue-400 font-black text-xl mb-1 italic">PLAN DE ACCIÓN</p>
-                <p className="text-xs text-gray-500 font-medium">Seguimiento de tareas por responsable</p>
+                <p className="text-xs text-gray-500 font-medium">Seguimiento de tareas y responsables</p>
             </div>
             <ClipboardList className="w-10 h-10 text-blue-500/20 group-hover:text-blue-500 transition-colors" />
         </button>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6" key={`charts-container-${safeRecords.length}`}>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="bg-[#1e293b] rounded-2xl border border-gray-800 p-8 flex flex-col items-center justify-center min-h-[400px]">
-          <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-8">Nivel de Calidad</h3>
+          <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-8">Estado de Calidad</h3>
           <div className="relative w-full h-72">
               <Recharts.ResponsiveContainer width="100%" height="100%">
-                  <Recharts.PieChart>
+                  <Recharts.PieChart key={`pie-${safeRecords.length}-${averageScore}`}>
                       <Recharts.Pie 
                         data={pieData} 
                         cx="50%" 
@@ -239,10 +232,15 @@ export const Dashboard: React.FC<DashboardProps> = ({ records = [], actions = []
       </div>
       
       <div className="bg-[#1e293b] rounded-2xl border border-gray-800 p-8 shadow-2xl">
-        <h3 className="text-sm font-bold text-white uppercase tracking-widest mb-8">Comparativa Visual (%)</h3>
+        <h3 className="text-sm font-bold text-white uppercase tracking-widest mb-8">Comparativa por Área (%)</h3>
         <div className="w-full" style={{ height: `${Math.max(300, chartData.length * 50)}px` }}>
           <Recharts.ResponsiveContainer width="100%" height="100%">
-            <Recharts.BarChart data={chartData} layout="vertical" margin={{ left: 10, right: 45 }}>
+            <Recharts.BarChart 
+              key={`bar-${safeRecords.length}-${chartData.length}`}
+              data={chartData} 
+              layout="vertical" 
+              margin={{ left: 10, right: 45 }}
+            >
               <Recharts.XAxis type="number" domain={[0, 100]} hide />
               <Recharts.YAxis dataKey="name" type="category" width={120} tick={{fontSize: 11, fill: '#94a3b8', fontWeight: 600}} axisLine={false} tickLine={false} />
               <Recharts.Tooltip 
