@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { ViewState, AuditRecord, ActionItem, AppConfig, Rating } from './types';
 import { QUESTIONS, AREA_MAPPING, AREAS } from './constants';
@@ -71,10 +70,11 @@ const App: React.FC = () => {
         setActions(prev => [...newActions, ...prev]);
       }
     }
-    // Delay para asegurar que el estado se actualice antes de renderizar gráficos
+    
+    // Pequeña pausa para asegurar que el DOM se prepare para el Dashboard
     setTimeout(() => {
       setView('dashboard');
-    }, 100);
+    }, 150);
   }, [editingRecord]);
 
   const generateDemo = () => {
@@ -106,7 +106,7 @@ const App: React.FC = () => {
     return (
         <div className="min-h-screen bg-[#0f172a] flex flex-col items-center justify-center gap-4">
             <Loader2 className="w-12 h-12 text-blue-500 animate-spin" />
-            <p className="text-blue-500 font-black tracking-widest text-xs">CARGANDO SISTEMA...</p>
+            <p className="text-blue-500 font-black tracking-widest text-xs uppercase">Inicializando Sistema...</p>
         </div>
     );
   }
@@ -176,13 +176,10 @@ const App: React.FC = () => {
       </main>
 
       <footer className="max-w-7xl mx-auto px-4 py-8 border-t border-gray-800 w-full opacity-30 text-center">
-        <p className="text-[10px] font-bold tracking-widest uppercase">AuditCheck Pro v2.0 - Optimized for Production & SharePoint Integration</p>
+        <p className="text-[10px] font-bold tracking-widest uppercase">AuditCheck Pro v2.1 - Estabilidad Reforzada</p>
       </footer>
     </div>
   );
 };
-
-export default App;
-
 
 export default App;
