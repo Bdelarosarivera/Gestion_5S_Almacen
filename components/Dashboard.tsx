@@ -178,7 +178,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ records = [], actions = []
           <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-8">Estado de Calidad</h3>
           <div className="relative w-full h-72">
               <Recharts.ResponsiveContainer width="100%" height="100%">
-                  <Recharts.PieChart key={`pie-${safeRecords.length}-${averageScore}`}>
+                  <Recharts.PieChart key={`pie-chart-${safeRecords.length}-${averageScore}`}>
                       <Recharts.Pie 
                         data={pieData} 
                         cx="50%" 
@@ -236,7 +236,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ records = [], actions = []
         <div className="w-full" style={{ height: `${Math.max(300, chartData.length * 50)}px` }}>
           <Recharts.ResponsiveContainer width="100%" height="100%">
             <Recharts.BarChart 
-              key={`bar-${safeRecords.length}-${chartData.length}`}
+              key={`bar-chart-${safeRecords.length}-${chartData.length}`}
               data={chartData} 
               layout="vertical" 
               margin={{ left: 10, right: 45 }}
