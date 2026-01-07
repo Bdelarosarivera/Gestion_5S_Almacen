@@ -1,5 +1,4 @@
 
-
 import React, { useRef, useMemo } from 'react';
 import * as Recharts from 'recharts';
 import { AuditRecord, ActionItem } from '../types';
