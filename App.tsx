@@ -17,7 +17,8 @@ import {
   Settings, 
   Home, 
   Camera,
-  Loader2
+  Loader2,
+  Search 
 } from 'lucide-react';
 
 const DEFAULT_CONFIG: AppConfig = {
@@ -44,7 +45,7 @@ const App: React.FC = () => {
             if (a) setActions(JSON.parse(a));
             if (c) setConfig(JSON.parse(c));
         } catch (e) {
-            console.error("Critical State Load Failure:", e);
+            console.error("Fallo al cargar estado local:", e);
         } finally {
             setIsInitializing(false);
         }
@@ -70,13 +71,15 @@ const App: React.FC = () => {
         setActions(prev => [...newActions, ...prev]);
       }
     }
-    // Pequeño delay para asegurar que el estado se propague antes de renderizar gráficos
-    setTimeout(() => setView('dashboard'), 50);
+    // Delay para asegurar que el estado se actualice antes de renderizar gráficos
+    setTimeout(() => {
+      setView('dashboard');
+    }, 100);
   }, [editingRecord]);
 
   const generateDemo = () => {
     const demo = config.areas.slice(0, 10).map((area, i) => ({
-        id: `demo-${i}`,
+        id: `demo-${i}-${Date.now()}`,
         area,
         auditor: 'Admin Demo',
         responsable: config.responsables.find(r => r.area === area)?.name || 'N/A',
@@ -178,5 +181,8 @@ const App: React.FC = () => {
     </div>
   );
 };
+
+export default App;
+
 
 export default App;
