@@ -36,9 +36,9 @@ const StatCard = ({ label, value, color, icon: Icon }: any) => (
 export const Dashboard: React.FC<DashboardProps> = ({ records = [], actions = [], onViewConsolidated, onViewActions, onGenerateDemo }) => {
   const dashboardRef = useRef<HTMLDivElement>(null);
 
-  // Garantizar que siempre trabajamos con arrays válidos
-  const safeRecords = useMemo(() => (Array.isArray(records) ? records : []), [records]);
-  const safeActions = useMemo(() => (Array.isArray(actions) ? actions : []), [actions]);
+  // Asegurar siempre un array válido para evitar fallos de iteración
+  const safeRecords = useMemo(() => Array.isArray(records) ? records : [], [records]);
+  const safeActions = useMemo(() => Array.isArray(actions) ? actions : [], [actions]);
 
   const stats = useMemo(() => {
     if (safeRecords.length === 0) return null;
@@ -50,9 +50,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ records = [], actions = []
         const areaName = r.area || 'Sin Área';
         if (!areaMap[areaName]) areaMap[areaName] = { total: 0, count: 0 };
         
-        // Sanitización estricta del puntaje
+        // Validación estricta del puntaje para evitar NaN
         const scoreVal = Number(r.score);
-        areaMap[areaName].total += isNaN(scoreVal) ? 0 : scoreVal;
+        const validScore = isNaN(scoreVal) ? 0 : scoreVal;
+        
+        areaMap[areaName].total += validScore;
         areaMap[areaName].count += 1;
       });
 
@@ -64,7 +66,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ records = [], actions = []
         }))
         .sort((a, b) => b.score - a.score);
 
-      const totalSum = safeRecords.reduce((acc, r) => acc + (Number(r.score) || 0), 0);
+      const totalSum = safeRecords.reduce((acc, r) => {
+          const val = Number(r.score);
+          return acc + (isNaN(val) ? 0 : val);
+      }, 0);
+      
       const avg = safeRecords.length > 0 ? Math.round(totalSum / safeRecords.length) : 0;
       const finalAvg = isNaN(avg) ? 0 : avg;
 
@@ -79,26 +85,25 @@ export const Dashboard: React.FC<DashboardProps> = ({ records = [], actions = []
         ]
       };
     } catch (e) {
-      console.error("Fallo crítico al procesar estadísticas:", e);
+      console.error("Dashboard calculation error:", e);
       return null;
     }
   }, [safeRecords, safeActions]);
 
-  // Pantalla de bienvenida si no hay datos
-  if (!stats || safeRecords.length === 0) {
+  if (!stats) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] text-center space-y-6 animate-fade-in bg-[#1e293b]/50 rounded-3xl border border-gray-800 p-12">
         <div className="bg-[#0f172a] p-10 rounded-full border border-gray-700 shadow-2xl">
           <LucideBarChart className="w-20 h-20 text-blue-500/50" />
         </div>
         <div className="max-w-md">
-          <h2 className="text-2xl font-bold text-white mb-2">Panel de Control Vacío</h2>
-          <p className="text-gray-400 mb-8 text-sm">Realice una auditoría o cargue datos de prueba para visualizar el desempeño operativo de la planta.</p>
+          <h2 className="text-2xl font-bold text-white mb-2">Sin Datos de Desempeño</h2>
+          <p className="text-gray-400 mb-8 text-sm">Realice su primera auditoría para visualizar las métricas y tendencias de cumplimiento en planta.</p>
           <button 
             onClick={onGenerateDemo}
             className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-8 py-4 rounded-2xl transition-all font-bold shadow-lg shadow-blue-600/20"
           >
-            <Database className="w-5 h-5" /> Generar Datos Iniciales
+            <Database className="w-5 h-5" /> Generar Datos de Ejemplo
           </button>
         </div>
       </div>
@@ -122,49 +127,45 @@ export const Dashboard: React.FC<DashboardProps> = ({ records = [], actions = []
           logging: false
         });
         const link = document.createElement('a');
-        link.download = `AuditCheck_Status_${new Date().toISOString().split('T')[0]}.png`;
+        link.download = `Status_AuditCheck_${new Date().toISOString().split('T')[0]}.png`;
         link.href = canvas.toDataURL('image/png');
         link.click();
-    } catch (e) { 
-        console.error("Error al capturar pantalla:", e);
-    }
+    } catch (e) { console.error("Screenshot error:", e); }
   };
-
-  const chartHeight = Math.max(300, chartData.length * 50);
 
   return (
     <div className="space-y-6 pb-24 animate-fade-in" ref={dashboardRef}>
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
             <h2 className="text-3xl font-black text-white flex items-center gap-3 tracking-tighter">
-                <TrendingUp className="text-blue-500" /> DASHBOARD OPERATIVO
+                <TrendingUp className="text-blue-500" /> DASHBOARD DE PLANTA
             </h2>
-            <p className="text-sm text-gray-500 font-medium">Visualización de cumplimiento de estándares 5S</p>
+            <p className="text-sm text-gray-500 font-medium italic">Consolidado de auditorías y planes de mejora</p>
           </div>
           <button onClick={handleCaptureScreenshot} className="flex items-center gap-2 bg-[#1e293b] border border-gray-700 hover:bg-gray-800 text-white px-5 py-2.5 rounded-xl transition-all font-bold text-xs uppercase tracking-widest">
-            <Camera className="w-4 h-4" /> Exportar Gráficas
+            <Camera className="w-4 h-4" /> Capturar Informe
           </button>
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard label="Auditorías Totales" value={safeRecords.length} color="text-blue-400" icon={ClipboardList} />
-        <StatCard label="Nivel de Planta" value={`${averageScore}%`} color={averageScore >= 80 ? 'text-green-400' : 'text-yellow-400'} icon={Target} />
-        <StatCard label="Hallazgos Abiertos" value={openActions} color="text-red-400" icon={AlertTriangle} />
-        <StatCard label="Cierres de Plan" value={closedActions} color="text-purple-400" icon={Trophy} />
+        <StatCard label="Auditorías" value={safeRecords.length} color="text-blue-400" icon={ClipboardList} />
+        <StatCard label="Promedio Planta" value={`${averageScore}%`} color={averageScore >= 80 ? 'text-green-400' : 'text-yellow-400'} icon={Target} />
+        <StatCard label="Hallazgos Pendientes" value={openActions} color="text-red-400" icon={AlertTriangle} />
+        <StatCard label="Cierres Exitosos" value={closedActions} color="text-purple-400" icon={Trophy} />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <button onClick={onViewConsolidated} className="p-6 bg-gradient-to-br from-[#1e293b] to-[#0f172a] border border-orange-500/20 rounded-2xl hover:border-orange-500/50 transition-all flex justify-between items-center group text-left shadow-lg">
             <div>
                 <p className="text-orange-400 font-black text-xl mb-1 italic">ANÁLISIS DE FALLOS</p>
-                <p className="text-xs text-gray-500 font-medium">Ver puntos de control con menor puntaje</p>
+                <p className="text-xs text-gray-500 font-medium">Preguntas con menor nivel de cumplimiento</p>
             </div>
             <PieIcon className="w-10 h-10 text-orange-500/20 group-hover:text-orange-500 transition-colors" />
         </button>
         <button onClick={onViewActions} className="p-6 bg-gradient-to-br from-[#1e293b] to-[#0f172a] border border-blue-500/20 rounded-2xl hover:border-blue-500/50 transition-all flex justify-between items-center group text-left shadow-lg">
             <div>
                 <p className="text-blue-400 font-black text-xl mb-1 italic">PLAN DE ACCIÓN</p>
-                <p className="text-xs text-gray-500 font-medium">Gestionar compromisos por responsable</p>
+                <p className="text-xs text-gray-500 font-medium">Seguimiento de tareas por responsable</p>
             </div>
             <ClipboardList className="w-10 h-10 text-blue-500/20 group-hover:text-blue-500 transition-colors" />
         </button>
@@ -172,9 +173,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ records = [], actions = []
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="bg-[#1e293b] rounded-2xl border border-gray-800 p-8 flex flex-col items-center justify-center min-h-[400px]">
-          <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-8">Cumplimiento Global</h3>
+          <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-8">Nivel de Calidad</h3>
           <div className="relative w-full h-72">
-              <Recharts.ResponsiveContainer width="100%" height="100%" key={safeRecords.length}>
+              <Recharts.ResponsiveContainer width="100%" height="100%" key={`pie-${safeRecords.length}`}>
                   <Recharts.PieChart>
                       <Recharts.Pie 
                         data={pieData} 
@@ -194,7 +195,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ records = [], actions = []
               </Recharts.ResponsiveContainer>
               <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
                   <span className="text-6xl font-black text-white leading-none">{averageScore}%</span>
-                  <span className="text-[10px] text-gray-500 font-bold uppercase tracking-tighter mt-2">Nivel de Calidad</span>
+                  <span className="text-[10px] text-gray-500 font-bold uppercase tracking-tighter mt-2">Planta Global</span>
               </div>
           </div>
         </div>
@@ -203,7 +204,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ records = [], actions = []
           <div className="p-5 border-b border-gray-800 bg-[#0f172a]/40 flex items-center justify-between">
               <div className="flex items-center gap-3">
                   <Trophy className="w-5 h-5 text-yellow-500" />
-                  <h3 className="text-sm font-bold text-white uppercase tracking-widest">Ranking por Área</h3>
+                  <h3 className="text-sm font-bold text-white uppercase tracking-widest">Ranking de Áreas</h3>
               </div>
               <span className="text-[10px] text-gray-500 font-bold italic">Top Desempeño</span>
           </div>
@@ -229,8 +230,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ records = [], actions = []
       </div>
       
       <div className="bg-[#1e293b] rounded-2xl border border-gray-800 p-8 shadow-2xl">
-        <h3 className="text-sm font-bold text-white uppercase tracking-widest mb-8">Comparativa de Áreas (%)</h3>
-        <div className="w-full" style={{ height: `${chartHeight}px` }}>
+        <h3 className="text-sm font-bold text-white uppercase tracking-widest mb-8">Comparativa Visual (%)</h3>
+        <div className="w-full" style={{ height: `${Math.max(300, chartData.length * 50)}px` }}>
           <Recharts.ResponsiveContainer width="100%" height="100%" key={`bar-${safeRecords.length}`}>
             <Recharts.BarChart data={chartData} layout="vertical" margin={{ left: 10, right: 45 }}>
               <Recharts.XAxis type="number" domain={[0, 100]} hide />
