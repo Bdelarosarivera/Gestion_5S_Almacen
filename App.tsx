@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ViewState, AuditRecord, ActionItem, AppConfig, Rating } from './types';
 import { QUESTIONS, AREA_MAPPING, AREAS } from './constants';
 import { AuditForm } from './components/AuditForm';
@@ -79,6 +79,7 @@ const App: React.FC = () => {
   }, [records, actions, config, isLoading]);
 
   const handleSaveAudit = (record: AuditRecord, newActions: ActionItem[]) => {
+    // Primero actualizamos los datos
     if (editingRecord) {
       setRecords(prev => prev.map(r => r.id === record.id ? record : r));
       setEditingRecord(null);
@@ -88,8 +89,11 @@ const App: React.FC = () => {
         setActions(prev => [...newActions, ...prev]);
       }
     }
-    // Pequeño delay para asegurar que el DOM se limpie antes de renderizar gráficas pesadas
-    setTimeout(() => setView('dashboard'), 50);
+    
+    // Cambiamos a la vista 'home' primero para resetear el árbol de renderizado
+    // y luego pasamos a indicadores después de un micro-delay. Esto evita el colapso.
+    setView('home');
+    setTimeout(() => setView('dashboard'), 100);
   };
 
   const loadDemoData = () => {
