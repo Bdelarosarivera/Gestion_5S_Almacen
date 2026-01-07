@@ -64,9 +64,9 @@ export const History: React.FC<HistoryProps> = ({ records, actions, onEdit, onDe
         <Share className="w-5 h-5 text-blue-400 mt-0.5" />
         <div className="text-xs text-gray-300">
             <span className="font-bold text-blue-300">Guía de sincronización:</span> 
-            1. Descargue el Excel. 
-            2. En SharePoint, elija "Nueva Lista" > "Desde Excel". 
-            3. Suba este archivo para automatizar el almacenamiento.
+            <p>1. Descargue el Excel.</p>
+            <p>2. En SharePoint, elija "Nueva Lista" &gt; "Desde Excel".</p>
+            <p>3. Suba este archivo para automatizar el almacenamiento.</p>
         </div>
       </div>
 
