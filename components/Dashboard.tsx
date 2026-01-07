@@ -36,20 +36,24 @@ const StatCard = ({ label, value, color, icon: Icon }: any) => (
 export const Dashboard: React.FC<DashboardProps> = ({ records = [], actions = [], onViewConsolidated, onViewActions, onGenerateDemo }) => {
   const dashboardRef = useRef<HTMLDivElement>(null);
 
-  const safeRecords = useMemo(() => Array.isArray(records) ? records : [], [records]);
-  const safeActions = useMemo(() => Array.isArray(actions) ? actions : [], [actions]);
+  // Garantizar que siempre trabajamos con arrays válidos
+  const safeRecords = useMemo(() => (Array.isArray(records) ? records : []), [records]);
+  const safeActions = useMemo(() => (Array.isArray(actions) ? actions : []), [actions]);
 
   const stats = useMemo(() => {
     if (safeRecords.length === 0) return null;
 
     try {
       const areaMap: Record<string, { total: number; count: number }> = {};
+      
       safeRecords.forEach(r => {
-        const area = r.area || 'General';
-        if (!areaMap[area]) areaMap[area] = { total: 0, count: 0 };
-        const scoreVal = Number(r.score) || 0;
-        areaMap[area].total += scoreVal;
-        areaMap[area].count += 1;
+        const areaName = r.area || 'Sin Área';
+        if (!areaMap[areaName]) areaMap[areaName] = { total: 0, count: 0 };
+        
+        // Sanitización estricta del puntaje
+        const scoreVal = Number(r.score);
+        areaMap[areaName].total += isNaN(scoreVal) ? 0 : scoreVal;
+        areaMap[areaName].count += 1;
       });
 
       const calculatedChartData = Object.entries(areaMap)
@@ -61,25 +65,27 @@ export const Dashboard: React.FC<DashboardProps> = ({ records = [], actions = []
         .sort((a, b) => b.score - a.score);
 
       const totalSum = safeRecords.reduce((acc, r) => acc + (Number(r.score) || 0), 0);
-      const avg = Math.round(totalSum / safeRecords.length) || 0;
+      const avg = safeRecords.length > 0 ? Math.round(totalSum / safeRecords.length) : 0;
+      const finalAvg = isNaN(avg) ? 0 : avg;
 
       return {
         chartData: calculatedChartData,
-        averageScore: avg,
+        averageScore: finalAvg,
         openActions: safeActions.filter(a => a && a.status !== 'CLOSED').length,
         closedActions: safeActions.filter(a => a && a.status === 'CLOSED').length,
         pieData: [
-          { name: 'Cumplimiento', value: avg },
-          { name: 'Brecha', value: Math.max(0, 100 - avg) }
+          { name: 'Cumplimiento', value: finalAvg },
+          { name: 'Brecha', value: Math.max(0, 100 - finalAvg) }
         ]
       };
     } catch (e) {
-      console.error("Dashboard Error:", e);
+      console.error("Fallo crítico al procesar estadísticas:", e);
       return null;
     }
   }, [safeRecords, safeActions]);
 
-  if (!stats) {
+  // Pantalla de bienvenida si no hay datos
+  if (!stats || safeRecords.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] text-center space-y-6 animate-fade-in bg-[#1e293b]/50 rounded-3xl border border-gray-800 p-12">
         <div className="bg-[#0f172a] p-10 rounded-full border border-gray-700 shadow-2xl">
@@ -119,8 +125,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ records = [], actions = []
         link.download = `AuditCheck_Status_${new Date().toISOString().split('T')[0]}.png`;
         link.href = canvas.toDataURL('image/png');
         link.click();
-    } catch (e) { console.error(e); }
+    } catch (e) { 
+        console.error("Error al capturar pantalla:", e);
+    }
   };
+
+  const chartHeight = Math.max(300, chartData.length * 50);
 
   return (
     <div className="space-y-6 pb-24 animate-fade-in" ref={dashboardRef}>
@@ -164,7 +174,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ records = [], actions = []
         <div className="bg-[#1e293b] rounded-2xl border border-gray-800 p-8 flex flex-col items-center justify-center min-h-[400px]">
           <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-8">Cumplimiento Global</h3>
           <div className="relative w-full h-72">
-              <Recharts.ResponsiveContainer width="100%" height="100%">
+              <Recharts.ResponsiveContainer width="100%" height="100%" key={safeRecords.length}>
                   <Recharts.PieChart>
                       <Recharts.Pie 
                         data={pieData} 
@@ -219,9 +229,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ records = [], actions = []
       </div>
       
       <div className="bg-[#1e293b] rounded-2xl border border-gray-800 p-8 shadow-2xl">
-        <h3 className="text-sm font-bold text-white uppercase tracking-widest mb-8">Comparativa de Áreas</h3>
-        <div className="w-full" style={{ height: `${Math.max(300, chartData.length * 50)}px` }}>
-          <Recharts.ResponsiveContainer width="100%" height="100%">
+        <h3 className="text-sm font-bold text-white uppercase tracking-widest mb-8">Comparativa de Áreas (%)</h3>
+        <div className="w-full" style={{ height: `${chartHeight}px` }}>
+          <Recharts.ResponsiveContainer width="100%" height="100%" key={`bar-${safeRecords.length}`}>
             <Recharts.BarChart data={chartData} layout="vertical" margin={{ left: 10, right: 45 }}>
               <Recharts.XAxis type="number" domain={[0, 100]} hide />
               <Recharts.YAxis dataKey="name" type="category" width={120} tick={{fontSize: 11, fill: '#94a3b8', fontWeight: 600}} axisLine={false} tickLine={false} />
@@ -240,3 +250,4 @@ export const Dashboard: React.FC<DashboardProps> = ({ records = [], actions = []
     </div>
   );
 };
+
