@@ -79,7 +79,6 @@ const App: React.FC = () => {
   }, [records, actions, config, isLoading]);
 
   const handleSaveAudit = (record: AuditRecord, newActions: ActionItem[]) => {
-    // Primero actualizamos los datos
     if (editingRecord) {
       setRecords(prev => prev.map(r => r.id === record.id ? record : r));
       setEditingRecord(null);
@@ -89,11 +88,7 @@ const App: React.FC = () => {
         setActions(prev => [...newActions, ...prev]);
       }
     }
-    
-    // Cambiamos a la vista 'home' primero para resetear el árbol de renderizado
-    // y luego pasamos a indicadores después de un micro-delay. Esto evita el colapso.
-    setView('home');
-    setTimeout(() => setView('dashboard'), 100);
+    setView('dashboard');
   };
 
   const loadDemoData = () => {
@@ -111,7 +106,7 @@ const App: React.FC = () => {
   };
 
   const renderContent = () => {
-    if (isLoading) return <div className="flex items-center justify-center h-[60vh] text-blue-500 font-bold">Cargando aplicación...</div>;
+    if (isLoading) return <div className="flex items-center justify-center h-[60vh] text-blue-500 font-bold">Iniciando aplicación...</div>;
 
     switch (view) {
       case 'home':
