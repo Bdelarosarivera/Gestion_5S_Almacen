@@ -10,7 +10,8 @@ import {
   BarChart as LucideBarChart,
   Database,
   TrendingUp,
-  AlertTriangle
+  AlertTriangle,
+  Target
 } from 'lucide-react';
 import html2canvas from 'html2canvas';
 
@@ -22,31 +23,32 @@ interface DashboardProps {
   onGenerateDemo?: () => void;
 }
 
-const StatCard = ({ label, value, color }: { label: string, value: string | number, color: string }) => (
-    <div className="bg-[#1e293b] p-4 rounded-2xl border border-gray-800 shadow-sm">
-        <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">{label}</p>
-        <p className={`text-2xl font-black ${color}`}>{value}</p>
+const StatCard = ({ label, value, color, icon: Icon }: any) => (
+    <div className="bg-[#1e293b] p-5 rounded-2xl border border-gray-800 shadow-sm hover:border-gray-700 transition-all">
+        <div className="flex justify-between items-start mb-2">
+            <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">{label}</p>
+            {Icon && <Icon className={`w-4 h-4 ${color.replace('text-', 'text-opacity-40 ')}`} />}
+        </div>
+        <p className={`text-3xl font-black ${color}`}>{value}</p>
     </div>
 );
 
 export const Dashboard: React.FC<DashboardProps> = ({ records = [], actions = [], onViewConsolidated, onViewActions, onGenerateDemo }) => {
   const dashboardRef = useRef<HTMLDivElement>(null);
 
-  // Sanitización de datos de entrada
   const safeRecords = useMemo(() => Array.isArray(records) ? records : [], [records]);
   const safeActions = useMemo(() => Array.isArray(actions) ? actions : [], [actions]);
 
-  // Cálculos ultra-seguros
   const stats = useMemo(() => {
     if (safeRecords.length === 0) return null;
 
     try {
       const areaMap: Record<string, { total: number; count: number }> = {};
       safeRecords.forEach(r => {
-        const area = r.area || 'Sin Área';
+        const area = r.area || 'General';
         if (!areaMap[area]) areaMap[area] = { total: 0, count: 0 };
-        const scoreVal = typeof r.score === 'number' ? r.score : Number(r.score);
-        areaMap[area].total += isNaN(scoreVal) ? 0 : scoreVal;
+        const scoreVal = Number(r.score) || 0;
+        areaMap[area].total += scoreVal;
         areaMap[area].count += 1;
       });
 
@@ -59,8 +61,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ records = [], actions = []
         .sort((a, b) => b.score - a.score);
 
       const totalSum = safeRecords.reduce((acc, r) => acc + (Number(r.score) || 0), 0);
-      const avgRaw = safeRecords.length > 0 ? Math.round(totalSum / safeRecords.length) : 0;
-      const avg = isNaN(avgRaw) ? 0 : avgRaw;
+      const avg = Math.round(totalSum / safeRecords.length) || 0;
 
       return {
         chartData: calculatedChartData,
@@ -69,30 +70,29 @@ export const Dashboard: React.FC<DashboardProps> = ({ records = [], actions = []
         closedActions: safeActions.filter(a => a && a.status === 'CLOSED').length,
         pieData: [
           { name: 'Cumplimiento', value: avg },
-          { name: 'Restante', value: Math.max(0, 100 - avg) }
+          { name: 'Brecha', value: Math.max(0, 100 - avg) }
         ]
       };
     } catch (e) {
-      console.error("Error en procesamiento de estadísticas:", e);
+      console.error("Dashboard Error:", e);
       return null;
     }
   }, [safeRecords, safeActions]);
 
-  // Si no hay datos, mostrar pantalla de bienvenida
-  if (!stats || safeRecords.length === 0) {
+  if (!stats) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] text-center space-y-6 animate-fade-in bg-[#1e293b] rounded-3xl border border-gray-800 p-10">
-        <div className="bg-[#0f172a] p-8 rounded-full border border-gray-700 shadow-2xl">
-          <LucideBarChart className="w-16 h-16 text-gray-500" />
+      <div className="flex flex-col items-center justify-center min-h-[60vh] text-center space-y-6 animate-fade-in bg-[#1e293b]/50 rounded-3xl border border-gray-800 p-12">
+        <div className="bg-[#0f172a] p-10 rounded-full border border-gray-700 shadow-2xl">
+          <LucideBarChart className="w-20 h-20 text-blue-500/50" />
         </div>
         <div className="max-w-md">
-          <h2 className="text-2xl font-bold text-gray-100 mb-2">Panel de Indicadores</h2>
-          <p className="text-gray-400 mb-6">Aún no hay suficientes auditorías para generar métricas significativas.</p>
+          <h2 className="text-2xl font-bold text-white mb-2">Panel de Control Vacío</h2>
+          <p className="text-gray-400 mb-8 text-sm">Realice una auditoría o cargue datos de prueba para visualizar el desempeño operativo de la planta.</p>
           <button 
             onClick={onGenerateDemo}
-            className="flex items-center gap-2 mx-auto bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl transition-all font-bold shadow-lg shadow-blue-500/20"
+            className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-8 py-4 rounded-2xl transition-all font-bold shadow-lg shadow-blue-600/20"
           >
-            <Database className="w-5 h-5" /> Generar Datos de Prueba
+            <Database className="w-5 h-5" /> Generar Datos Iniciales
           </button>
         </div>
       </div>
@@ -103,7 +103,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ records = [], actions = []
 
   const getBarColor = (score: number) => {
     if (score >= 90) return '#22c55e';
-    if (score >= 70) return '#eab308';
+    if (score >= 75) return '#eab308';
     return '#ef4444';
   };
 
@@ -113,123 +113,125 @@ export const Dashboard: React.FC<DashboardProps> = ({ records = [], actions = []
         const canvas = await html2canvas(dashboardRef.current, { 
           backgroundColor: '#0f172a', 
           scale: 2,
-          useCORS: true 
+          logging: false
         });
         const link = document.createElement('a');
-        link.download = `Reporte_Indicadores.png`;
+        link.download = `AuditCheck_Status_${new Date().toISOString().split('T')[0]}.png`;
         link.href = canvas.toDataURL('image/png');
         link.click();
-    } catch (e) { console.error("Fallo al exportar imagen:", e); }
+    } catch (e) { console.error(e); }
   };
 
-  // Fallback visual si Recharts falla críticamente por conflictos de React
-  if (!Recharts.ResponsiveContainer) {
-    return (
-        <div className="p-10 bg-red-900/10 border border-red-500/30 rounded-2xl text-center">
-            <AlertTriangle className="w-12 h-12 text-red-500 mx-auto mb-4" />
-            <h2 className="text-xl font-bold text-white">Error de Carga de Gráficos</h2>
-            <p className="text-gray-400 mb-4">La librería de visualización no pudo cargarse debido a un conflicto de versiones. Por favor, limpie la caché de su navegador o use una ventana de incógnito.</p>
-            <div className="flex justify-center gap-4">
-                <StatCard label="Puntaje" value={`${averageScore}%`} color="text-yellow-400" />
-                <StatCard label="Auditorías" value={safeRecords.length} color="text-blue-400" />
-            </div>
-        </div>
-    );
-  }
-
-  const chartHeight = Math.max(300, chartData.length * 45);
-
   return (
-    <div className="space-y-6 pb-20 animate-fade-in" ref={dashboardRef}>
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+    <div className="space-y-6 pb-24 animate-fade-in" ref={dashboardRef}>
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
-            <h2 className="text-2xl font-bold text-white tracking-tight flex items-center gap-2">
-                <TrendingUp className="text-blue-400" /> Indicadores Operativos
+            <h2 className="text-3xl font-black text-white flex items-center gap-3 tracking-tighter">
+                <TrendingUp className="text-blue-500" /> DASHBOARD OPERATIVO
             </h2>
-            <p className="text-sm text-gray-500">Métricas acumuladas de cumplimiento</p>
+            <p className="text-sm text-gray-500 font-medium">Visualización de cumplimiento de estándares 5S</p>
           </div>
-          <button onClick={handleCaptureScreenshot} className="flex items-center gap-2 bg-[#1e293b] border border-gray-700 hover:bg-gray-800 text-white px-4 py-2 rounded-xl transition-all font-bold text-sm">
-            <Camera className="w-4 h-4" /> Exportar Dashboard
+          <button onClick={handleCaptureScreenshot} className="flex items-center gap-2 bg-[#1e293b] border border-gray-700 hover:bg-gray-800 text-white px-5 py-2.5 rounded-xl transition-all font-bold text-xs uppercase tracking-widest">
+            <Camera className="w-4 h-4" /> Exportar Gráficas
           </button>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <StatCard label="Total Inspecciones" value={safeRecords.length} color="text-blue-400" />
-        <StatCard label="Nivel Global" value={`${averageScore}%`} color={averageScore >= 80 ? 'text-green-400' : 'text-yellow-400'} />
-        <StatCard label="Acciones Abiertas" value={openActions} color="text-red-400" />
-        <StatCard label="Hallazgos Cerrados" value={closedActions} color="text-purple-400" />
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatCard label="Auditorías Totales" value={safeRecords.length} color="text-blue-400" icon={ClipboardList} />
+        <StatCard label="Nivel de Planta" value={`${averageScore}%`} color={averageScore >= 80 ? 'text-green-400' : 'text-yellow-400'} icon={Target} />
+        <StatCard label="Hallazgos Abiertos" value={openActions} color="text-red-400" icon={AlertTriangle} />
+        <StatCard label="Cierres de Plan" value={closedActions} color="text-purple-400" icon={Trophy} />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <button onClick={onViewConsolidated} className="p-5 bg-[#1e293b] border border-orange-500/20 rounded-2xl hover:border-orange-500/50 transition-all flex justify-between items-center group text-left">
+        <button onClick={onViewConsolidated} className="p-6 bg-gradient-to-br from-[#1e293b] to-[#0f172a] border border-orange-500/20 rounded-2xl hover:border-orange-500/50 transition-all flex justify-between items-center group text-left shadow-lg">
             <div>
-                <p className="text-orange-400 font-bold text-lg">Debilidades Críticas</p>
-                <p className="text-xs text-gray-500">Puntos de control más afectados</p>
+                <p className="text-orange-400 font-black text-xl mb-1 italic">ANÁLISIS DE FALLOS</p>
+                <p className="text-xs text-gray-500 font-medium">Ver puntos de control con menor puntaje</p>
             </div>
-            <PieIcon className="w-8 h-8 text-orange-500/30 group-hover:text-orange-500 transition-colors" />
+            <PieIcon className="w-10 h-10 text-orange-500/20 group-hover:text-orange-500 transition-colors" />
         </button>
-        <button onClick={onViewActions} className="p-5 bg-[#1e293b] border border-blue-500/20 rounded-2xl hover:border-blue-500/50 transition-all flex justify-between items-center group text-left">
+        <button onClick={onViewActions} className="p-6 bg-gradient-to-br from-[#1e293b] to-[#0f172a] border border-blue-500/20 rounded-2xl hover:border-blue-500/50 transition-all flex justify-between items-center group text-left shadow-lg">
             <div>
-                <p className="text-blue-400 font-bold text-lg">Seguimiento de Acciones</p>
-                <p className="text-xs text-gray-500">Estado de compromisos de mejora</p>
+                <p className="text-blue-400 font-black text-xl mb-1 italic">PLAN DE ACCIÓN</p>
+                <p className="text-xs text-gray-500 font-medium">Gestionar compromisos por responsable</p>
             </div>
-            <ClipboardList className="w-8 h-8 text-blue-500/30 group-hover:text-blue-500 transition-colors" />
+            <ClipboardList className="w-10 h-10 text-blue-500/20 group-hover:text-blue-500 transition-colors" />
         </button>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="bg-[#1e293b] rounded-2xl border border-gray-800 p-6 flex flex-col items-center justify-center min-h-[350px]">
-          <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-4">Estado de Planta</h3>
-          <div className="relative w-full h-64">
+        <div className="bg-[#1e293b] rounded-2xl border border-gray-800 p-8 flex flex-col items-center justify-center min-h-[400px]">
+          <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-8">Cumplimiento Global</h3>
+          <div className="relative w-full h-72">
               <Recharts.ResponsiveContainer width="100%" height="100%">
                   <Recharts.PieChart>
-                      <Recharts.Pie data={pieData} cx="50%" cy="50%" innerRadius={60} outerRadius={85} dataKey="value" stroke="none" startAngle={90} endAngle={-270}>
+                      <Recharts.Pie 
+                        data={pieData} 
+                        cx="50%" 
+                        cy="50%" 
+                        innerRadius={80} 
+                        outerRadius={110} 
+                        dataKey="value" 
+                        stroke="none" 
+                        startAngle={90} 
+                        endAngle={-270}
+                      >
                           <Recharts.Cell fill={getBarColor(averageScore)} />
                           <Recharts.Cell fill="#0f172a" />
                       </Recharts.Pie>
                   </Recharts.PieChart>
               </Recharts.ResponsiveContainer>
               <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                  <span className="text-5xl font-black text-white">{averageScore}%</span>
-                  <span className="text-[10px] text-gray-500 font-bold uppercase mt-1">Cumplimiento</span>
+                  <span className="text-6xl font-black text-white leading-none">{averageScore}%</span>
+                  <span className="text-[10px] text-gray-500 font-bold uppercase tracking-tighter mt-2">Nivel de Calidad</span>
               </div>
           </div>
         </div>
 
-        <div className="lg:col-span-2 bg-[#1e293b] rounded-2xl border border-gray-800 overflow-hidden">
-          <div className="p-4 border-b border-gray-800 bg-[#0f172a]/30 flex items-center gap-2">
-              <Trophy className="w-5 h-5 text-yellow-500" />
-              <h3 className="text-sm font-bold text-white uppercase tracking-widest">Ranking por Áreas</h3>
+        <div className="lg:col-span-2 bg-[#1e293b] rounded-2xl border border-gray-800 overflow-hidden flex flex-col">
+          <div className="p-5 border-b border-gray-800 bg-[#0f172a]/40 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                  <Trophy className="w-5 h-5 text-yellow-500" />
+                  <h3 className="text-sm font-bold text-white uppercase tracking-widest">Ranking por Área</h3>
+              </div>
+              <span className="text-[10px] text-gray-500 font-bold italic">Top Desempeño</span>
           </div>
-          <div className="p-2 overflow-y-auto max-h-[300px] divide-y divide-gray-800/50">
+          <div className="p-2 overflow-y-auto flex-1 max-h-[350px] divide-y divide-gray-800/50">
             {chartData.map((item, index) => (
-              <div key={item.name} className="p-4 flex items-center justify-between hover:bg-white/5 transition-colors">
+              <div key={item.name} className="p-4 flex items-center justify-between hover:bg-white/5 transition-colors group">
                 <div className="flex items-center gap-4">
-                  <span className={`w-6 h-6 rounded flex items-center justify-center text-xs font-bold ${index < 3 ? 'bg-yellow-500/20 text-yellow-500' : 'bg-gray-800 text-gray-500'}`}>
+                  <span className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm font-black ${index < 3 ? 'bg-yellow-500/10 text-yellow-500' : 'bg-gray-800 text-gray-500'}`}>
                     {index + 1}
                   </span>
-                  <span className="font-bold text-sm text-gray-100">{item.name}</span>
+                  <span className="font-bold text-gray-200 group-hover:text-white transition-colors">{item.name}</span>
                 </div>
-                <span className={`px-2 py-1 rounded-md text-[10px] font-bold border ${item.score >= 85 ? 'text-green-400 border-green-900/50 bg-green-900/10' : 'text-yellow-400 border-yellow-900/50 bg-yellow-900/10'}`}>
-                    {item.score}%
-                </span>
+                <div className="flex items-center gap-4">
+                    <span className="text-[10px] text-gray-500 font-bold uppercase">{item.audits} Auditorías</span>
+                    <span className={`px-3 py-1.5 rounded-xl text-xs font-black border ${item.score >= 85 ? 'text-green-400 border-green-900/50 bg-green-900/10' : 'text-yellow-400 border-yellow-900/50 bg-yellow-900/10'}`}>
+                        {item.score}%
+                    </span>
+                </div>
               </div>
             ))}
           </div>
         </div>
       </div>
-
-      <div className="bg-[#1e293b] rounded-2xl border border-gray-800 p-6">
-        <h3 className="text-sm font-bold text-white uppercase tracking-widest mb-6">Comparativa por Planta (%)</h3>
-        <div className="w-full" style={{ height: `${chartHeight}px` }}>
+      
+      <div className="bg-[#1e293b] rounded-2xl border border-gray-800 p-8 shadow-2xl">
+        <h3 className="text-sm font-bold text-white uppercase tracking-widest mb-8">Comparativa de Áreas</h3>
+        <div className="w-full" style={{ height: `${Math.max(300, chartData.length * 50)}px` }}>
           <Recharts.ResponsiveContainer width="100%" height="100%">
-            <Recharts.BarChart data={chartData} layout="vertical" margin={{ left: 10, right: 40, top: 0, bottom: 0 }}>
+            <Recharts.BarChart data={chartData} layout="vertical" margin={{ left: 10, right: 45 }}>
               <Recharts.XAxis type="number" domain={[0, 100]} hide />
-              <Recharts.YAxis dataKey="name" type="category" width={110} tick={{fontSize: 10, fill: '#94a3b8'}} axisLine={false} tickLine={false} />
-              <Recharts.Tooltip cursor={{fill: 'rgba(255,255,255,0.05)'}} contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #374151', borderRadius: '8px' }} />
-              <Recharts.Bar dataKey="score" radius={[0, 4, 4, 0]} barSize={20}>
+              <Recharts.YAxis dataKey="name" type="category" width={120} tick={{fontSize: 11, fill: '#94a3b8', fontWeight: 600}} axisLine={false} tickLine={false} />
+              <Recharts.Tooltip 
+                cursor={{fill: 'rgba(255,255,255,0.03)'}} 
+                contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #334155', borderRadius: '12px', fontSize: '12px' }} 
+              />
+              <Recharts.Bar dataKey="score" radius={[0, 6, 6, 0]} barSize={24}>
                   {chartData.map((entry, index) => <Recharts.Cell key={index} fill={getBarColor(entry.score)} />)}
-                  <Recharts.LabelList dataKey="score" position="right" formatter={(v: any) => `${v}%`} style={{ fontSize: '10px', fill: '#cbd5e1' }} offset={10} />
+                  <Recharts.LabelList dataKey="score" position="right" formatter={(v: any) => `${v}%`} style={{ fontSize: '11px', fill: '#cbd5e1', fontWeight: 800 }} offset={12} />
               </Recharts.Bar>
             </Recharts.BarChart>
           </Recharts.ResponsiveContainer>
