@@ -1,5 +1,6 @@
-import React, { useRef, useMemo, useEffect, useState } from 'react';
+import React, { useMemo, useEffect, useState } from 'react';
 import * as Recharts from 'recharts';
+import { AuditRecord, ActionItem } from '../types';
 import { 
   Trophy, 
   ClipboardList, 
@@ -9,23 +10,6 @@ import {
   AlertTriangle,
   Target
 } from 'lucide-react';
-
-// Tipos necesarios
-interface Answer { questionId: number; rating: string; }
-interface AuditRecord {
-  id: string;
-  area: string;
-  auditor: string;
-  responsable: string;
-  date: string;
-  score: number;
-  answers: Answer[];
-}
-interface ActionItem {
-  id: string;
-  status: string;
-  [key: string]: any;
-}
 
 interface DashboardProps {
   records: AuditRecord[];
@@ -304,4 +288,4 @@ export const Dashboard: React.FC<DashboardProps> = ({
       </div>
     </div>
   );
-}
+};
