@@ -1,3 +1,4 @@
+
 export enum Rating {
   SI = 'SI',
   NO = 'NO',
@@ -19,10 +20,10 @@ export interface AuditRecord {
   id: string;
   area: string;
   auditor: string;
-  responsable?: string; // Person in charge of the area
-  date: string; // ISO string
+  responsable?: string;
+  date: string;
   answers: Answer[];
-  score: number; // 0-100
+  score: number;
 }
 
 export type ActionStatus = 'PENDING' | 'IN_PROGRESS' | 'CLOSED';
@@ -33,10 +34,10 @@ export interface ActionItem {
   area: string;
   questionId: number;
   questionText: string;
-  issueType: 'NO' | 'PARCIAL'; // Why was it created?
+  issueType: 'NO'; // Restringido solo a NO
   suggestedAction: string;
   responsable: string;
-  dueDate: string; // ISO string
+  dueDate: string;
   status: ActionStatus;
   comments?: string;
   createdAt: string;

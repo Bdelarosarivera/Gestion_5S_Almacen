@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Rating, Answer, AuditRecord, AppConfig, ActionItem } from '../types';
 import { Save, User, MapPin, ClipboardCheck, Calendar, UserCircle, X } from 'lucide-react';
@@ -84,31 +85,31 @@ export const AuditForm: React.FC<AuditFormProps> = ({ initialData, config, onSav
     };
 
     const newActions: ActionItem[] = [];
-    if (!initialData) { 
-        answerList.forEach(ans => {
-            // REQUERIMIENTO: Solo generar plan de acción para respuestas "NO"
-            if (ans.rating === Rating.NO) {
-                const q = config.questions.find(q => q.id === ans.questionId);
-                if (q) {
-                    const dueDate = new Date(dateObj); 
-                    dueDate.setDate(dueDate.getDate() + 7);
-                    newActions.push({
-                        id: crypto.randomUUID(),
-                        auditId: newId,
-                        area: area,
-                        questionId: q.id,
-                        questionText: q.text,
-                        issueType: 'NO',
-                        suggestedAction: `Corregir hallazgo: "${q.text}"`,
-                        responsable: responsable,
-                        dueDate: dueDate.toISOString(),
-                        status: 'PENDING',
-                        createdAt: new Date().toISOString()
-                    });
-                }
+    
+    // Generación de acciones: SOLO para respuestas "NO"
+    answerList.forEach(ans => {
+        if (ans.rating === Rating.NO) {
+            const q = config.questions.find(q => q.id === ans.questionId);
+            if (q) {
+                const dueDate = new Date(dateObj); 
+                dueDate.setDate(dueDate.getDate() + 7);
+                newActions.push({
+                    id: crypto.randomUUID(),
+                    auditId: newId,
+                    area: area,
+                    questionId: q.id,
+                    questionText: q.text,
+                    issueType: 'NO',
+                    suggestedAction: `Corregir hallazgo crítico: "${q.text}"`,
+                    responsable: responsable,
+                    dueDate: dueDate.toISOString(),
+                    status: 'PENDING',
+                    createdAt: new Date().toISOString()
+                });
             }
-        });
-    }
+        }
+    });
+
     onSave(record, newActions);
   };
 
@@ -126,7 +127,10 @@ export const AuditForm: React.FC<AuditFormProps> = ({ initialData, config, onSav
   return (
     <div className="max-w-4xl mx-auto mb-24 animate-fade-in">
       <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-bold text-gray-100">Nueva Auditoría</h2>
+        <div>
+          <h2 className="text-2xl font-bold text-gray-100">{initialData ? 'Editar Auditoría' : 'Nueva Auditoría'}</h2>
+          <p className="text-xs text-gray-500 mt-1 uppercase tracking-widest font-bold">Solo las respuestas "NO" generarán plan de acción.</p>
+        </div>
         <div className={`px-4 py-2 rounded-xl font-bold text-lg border ${
             currentScore >= 90 ? 'bg-green-900/20 text-green-400 border-green-500/30' :
             currentScore >= 70 ? 'bg-yellow-900/20 text-yellow-400 border-yellow-500/30' :
@@ -173,10 +177,13 @@ export const AuditForm: React.FC<AuditFormProps> = ({ initialData, config, onSav
 
         <div className="space-y-3">
           {config.questions.map((q, index) => (
-            <div key={q.id} className="bg-[#1e293b] p-5 rounded-2xl border border-gray-800 shadow-sm transition-all hover:bg-[#1e293b]/80">
-              <p className="text-gray-200 font-medium mb-4 flex gap-3">
-                <span className="text-blue-500 font-bold">{index + 1}.</span> {q.text}
-              </p>
+            <div key={q.id} className={`p-5 rounded-2xl border shadow-sm transition-all hover:bg-[#1e293b]/80 ${answers[q.id] === Rating.NO ? 'bg-red-900/10 border-red-500/30' : 'bg-[#1e293b] border-gray-800'}`}>
+              <div className="flex justify-between items-start mb-4">
+                <p className="text-gray-200 font-medium flex gap-3">
+                    <span className="text-blue-500 font-bold">{index + 1}.</span> {q.text}
+                </p>
+                {answers[q.id] === Rating.NO && <span className="text-[10px] font-black text-red-500 uppercase bg-red-500/10 px-2 py-1 rounded">Genera Acción Correctiva</span>}
+              </div>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 ml-6">
                 {Object.values(Rating).map((rating) => (
                   <button key={rating} type="button" onClick={() => handleRatingChange(q.id, rating)} className={`py-2.5 px-3 rounded-xl border text-xs font-bold transition-all ${getRatingColorClass(rating, answers[q.id] === rating)}`}>
