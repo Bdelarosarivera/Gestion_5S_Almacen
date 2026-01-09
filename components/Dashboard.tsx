@@ -1,6 +1,7 @@
 
 import React, { useRef, useMemo, useEffect, useState } from 'react';
 import * as Recharts from 'recharts';
+import html2canvas from 'html2canvas';
 import { AuditRecord, ActionItem } from '../types';
 import { 
   Trophy, 
@@ -12,7 +13,8 @@ import {
   Target,
   ListChecks,
   SearchCode,
-  ArrowRight
+  ArrowRight,
+  Camera
 } from 'lucide-react';
 
 interface DashboardProps {
@@ -41,11 +43,32 @@ const StatCard = ({ label, value, color, icon: Icon, onClick }: any) => (
 
 export const Dashboard: React.FC<DashboardProps> = ({ records = [], actions = [], onViewConsolidated, onViewActions, onGenerateDemo }) => {
   const [isReady, setIsReady] = useState(false);
+  const dashboardRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const timer = setTimeout(() => setIsReady(true), 200);
     return () => clearTimeout(timer);
   }, [records.length]);
+
+  const handleCaptureScreenshot = async () => {
+    if (dashboardRef.current) {
+        try {
+            const canvas = await html2canvas(dashboardRef.current, {
+                backgroundColor: '#0f172a',
+                scale: 2,
+                logging: false,
+                useCORS: true
+            });
+            const link = document.createElement('a');
+            link.download = `Dashboard_Planta_${new Date().toISOString().split('T')[0]}.png`;
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+        } catch (error) {
+            console.error("Error capturando dashboard:", error);
+            alert("Error al capturar la imagen. Intente nuevamente.");
+        }
+    }
+  };
 
   const safeRecords = useMemo(() => Array.isArray(records) ? records : [], [records]);
   const safeActions = useMemo(() => Array.isArray(actions) ? actions : [], [actions]);
@@ -126,12 +149,19 @@ export const Dashboard: React.FC<DashboardProps> = ({ records = [], actions = []
   };
 
   return (
-    <div className="space-y-6 pb-24 animate-fade-in">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <div className="space-y-6 pb-24 animate-fade-in" ref={dashboardRef}>
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <h2 className="text-3xl font-black text-white flex items-center gap-3 tracking-tighter">
             <TrendingUp className="text-blue-500" /> DASHBOARD DE PLANTA
         </h2>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+            <button 
+              onClick={handleCaptureScreenshot}
+              className="flex items-center gap-2 bg-purple-600/10 text-purple-400 border border-purple-500/30 px-4 py-2 rounded-xl text-xs font-bold hover:bg-purple-600 hover:text-white transition-all"
+              title="Descargar imagen del dashboard"
+            >
+                <Camera className="w-4 h-4" /> Capturar
+            </button>
             <button 
               onClick={onViewConsolidated}
               className="flex items-center gap-2 bg-blue-600/10 text-blue-400 border border-blue-500/30 px-4 py-2 rounded-xl text-xs font-bold hover:bg-blue-600 hover:text-white transition-all"
