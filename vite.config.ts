@@ -1,3 +1,4 @@
+
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
@@ -8,21 +9,11 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     rollupOptions: {
-      // Indicamos a Rollup que estas librerías se cargarán externamente (vía importmap en index.html)
-      external: [
-        'html2canvas',
-        'xlsx',
-        'recharts',
-        'lucide-react',
-        '@google/genai'
-      ],
+      // Al eliminar 'external', Vite agrupará todas las dependencias en el bundle.
+      // Esto previene errores de red/CORS y conflictos de versiones de React.
       output: {
-        globals: {
-          html2canvas: 'html2canvas',
-          xlsx: 'XLSX',
-          recharts: 'Recharts',
-          'lucide-react': 'LucideReact',
-          '@google/genai': 'GoogleGenAI'
+        manualChunks: {
+          vendor: ['react', 'react-dom', 'lucide-react', 'recharts', 'xlsx', 'html2canvas']
         }
       }
     }

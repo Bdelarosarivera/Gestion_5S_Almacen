@@ -14,7 +14,6 @@ interface HistoryProps {
 export const History: React.FC<HistoryProps> = ({ records, actions, onEdit, onDelete }) => {
   
   const handleExportExcel = () => {
-    // Formateo estricto para listas de SharePoint
     const auditData = records.map(r => {
       const row: any = {
         'ID_Auditoria': r.id,
@@ -24,17 +23,13 @@ export const History: React.FC<HistoryProps> = ({ records, actions, onEdit, onDe
         'Auditor': r.auditor,
         'Puntaje': r.score
       };
-      // Columnas dinámicas para respuestas
       r.answers.forEach(a => { row[`P${a.questionId}`] = a.rating; });
       return row;
     });
 
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.json_to_sheet(auditData);
-    
-    // Convertir el rango a una tabla (metadata de Excel) para que SharePoint lo reconozca
     XLSX.utils.book_append_sheet(wb, ws, "SharePoint_Data");
-    
     XLSX.writeFile(wb, `Audit_SharePoint_${new Date().getTime()}.xlsx`);
   };
 
@@ -47,14 +42,14 @@ export const History: React.FC<HistoryProps> = ({ records, actions, onEdit, onDe
 
   return (
     <div className="space-y-6 mb-24 animate-fade-in">
-      <div className="flex flex-col sm:row justify-between items-start sm:items-center gap-4 bg-[#1e293b] p-6 rounded-2xl shadow-lg border border-gray-700">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-[#1e293b] p-6 rounded-2xl shadow-lg border border-gray-700">
         <div>
           <h2 className="text-2xl font-bold text-gray-100">Registros y SharePoint</h2>
           <p className="text-sm text-gray-400">Exporte sus datos para sincronizar con su nube corporativa.</p>
         </div>
         <button 
           onClick={handleExportExcel}
-          className="flex items-center gap-2 bg-[#107c41] hover:bg-[#0b5c30] text-white px-6 py-3 rounded-xl transition-all font-bold shadow-lg"
+          className="flex items-center gap-2 bg-[#107c41] hover:bg-[#0b5c30] text-white px-6 py-3 rounded-xl transition-all font-bold shadow-lg w-full sm:w-auto justify-center"
         >
           <FileSpreadsheet className="w-5 h-5" /> Exportar a SharePoint
         </button>
@@ -71,30 +66,53 @@ export const History: React.FC<HistoryProps> = ({ records, actions, onEdit, onDe
       </div>
 
       <div className="bg-[#1e293b] rounded-2xl shadow-lg border border-gray-700 overflow-hidden">
-        <table className="min-w-full divide-y divide-gray-800">
-          <thead className="bg-[#0f172a]">
-            <tr>
-              <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase">Fecha</th>
-              <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase">Área</th>
-              <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase">Score</th>
-              <th className="px-6 py-4 text-right text-xs font-bold text-gray-500 uppercase">Acción</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-800">
-            {records.map((r) => (
-              <tr key={r.id} className="hover:bg-white/5 transition-colors">
-                <td className="px-6 py-4 text-sm text-gray-400">{new Date(r.date).toLocaleDateString()}</td>
-                <td className="px-6 py-4 text-sm font-bold text-white">{r.area}</td>
-                <td className="px-6 py-4">{getScoreBadge(r.score)}</td>
-                <td className="px-6 py-4 text-right">
-                  <button onClick={() => onDelete(r.id)} className="text-red-500 hover:bg-red-500/10 p-2 rounded-lg transition-all">
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </td>
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-800">
+            <thead className="bg-[#0f172a]">
+              <tr>
+                <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase">Fecha</th>
+                <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase">Área</th>
+                <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase">Score</th>
+                <th className="px-6 py-4 text-right text-xs font-bold text-gray-500 uppercase">Acción</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-gray-800">
+              {records.length === 0 ? (
+                <tr>
+                  <td colSpan={4} className="px-6 py-10 text-center text-gray-500 italic">No hay registros disponibles.</td>
+                </tr>
+              ) : (
+                records.map((r) => (
+                  <tr key={r.id} className="hover:bg-white/5 transition-colors group">
+                    <td className="px-6 py-4 text-sm text-gray-400">{new Date(r.date).toLocaleDateString()}</td>
+                    <td className="px-6 py-4 text-sm font-bold text-white">{r.area}</td>
+                    <td className="px-6 py-4">{getScoreBadge(r.score)}</td>
+                    <td className="px-6 py-4 text-right flex justify-end gap-2">
+                      <button 
+                        onClick={() => onEdit(r)} 
+                        title="Editar auditoría"
+                        className="text-blue-400 hover:bg-blue-400/10 p-2 rounded-lg transition-all"
+                      >
+                        <Edit2 className="w-4 h-4" />
+                      </button>
+                      <button 
+                        onClick={() => {
+                          if (confirm('¿Está seguro de eliminar esta auditoría?')) {
+                            onDelete(r.id);
+                          }
+                        }} 
+                        title="Eliminar registro"
+                        className="text-red-500 hover:bg-red-500/10 p-2 rounded-lg transition-all"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );
