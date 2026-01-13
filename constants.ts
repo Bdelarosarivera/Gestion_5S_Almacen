@@ -18,6 +18,7 @@ export const QUESTIONS: Question[] = [
   { id: 15, text: "¿Los artículos averiados en el área fueron reportados con anterioridad?" },
   { id: 16, text: "¿Se están tomando medidas correctivas para disminuir las averías?" },
   { id: 17, text: "¿Están colocados correctamente los artículos en las tramerías?" },
+  { id: 18, text: "¿Las etiquetas de precios se encuentran actualizadas en tienda?" },
 ];
 
 export const AREA_MAPPING: { area: string; responsable: string }[] = [
@@ -40,6 +41,8 @@ export const AREA_MAPPING: { area: string; responsable: string }[] = [
   { area: "MEZZANINE P23-P25", responsable: "YOFRAISY" },
   { area: "PATIO", responsable: "JAMIL" },
   { area: "MADERA", responsable: "RAFAEL" },
+  { area: "TIENDA", responsable: "SABIEL" },
+  
 ];
 
 export const AREAS = AREA_MAPPING.map(item => item.area);
