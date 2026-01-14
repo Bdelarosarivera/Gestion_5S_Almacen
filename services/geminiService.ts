@@ -1,9 +1,8 @@
-
 import { GoogleGenAI } from "@google/genai";
 
 export const editImageWithGemini = async (base64Image: string, prompt: string): Promise<string> => {
-  // Inicialización directa según las directrices de seguridad y estabilidad
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+  // Fix: Strictly follow initialization guidelines by using process.env.API_KEY directly as a named parameter
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
   try {
     const mimeType = base64Image.match(/data:([a-zA-Z0-9]+\/[a-zA-Z0-9-.+]+).*,.*/)?.[1] || 'image/png';

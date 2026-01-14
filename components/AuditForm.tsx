@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Rating, Answer, AuditRecord, AppConfig, ActionItem } from '../types';
 import { Save, User, MapPin, ClipboardCheck, Calendar, UserCircle, X } from 'lucide-react';
@@ -53,6 +52,33 @@ export const AuditForm: React.FC<AuditFormProps> = ({ initialData, config, onSav
     setAnswers(prev => ({ ...prev, [questionId]: rating }));
   };
 
+  // Función para generar la acción sugerida basada en la pregunta
+  const getSuggestedAction = (questionText: string): string => {
+    const text = questionText.toLowerCase();
+    let action = "";
+
+    if (text.includes("organizada")) action = "Organizar el área";
+    else if (text.includes("identificados correctamente")) action = "Identificar los artículos correctamente";
+    else if (text.includes("fuera de ubicación")) action = "Organizar e identificar artículos fuera de ubicación";
+    else if (text.includes("actualizados en sistema")) action = "Actualizar la ubicación de los artículos en sistema";
+    else if (text.includes("nivel 3")) action = "Completar paletas del nivel 3";
+    else if (text.includes("distribuidos debidamente")) action = "Distribuir debidamente los artículos";
+    else if (text.includes("espacios disponibles")) action = "Optimizar uso de espacios disponibles";
+    else if (text.includes("limpia y libre")) action = "Limpiar área y retirar obstrucciones";
+    else if (text.includes("5s")) action = "Restablecer estándares 5S (Organización, Identificación y Limpieza)";
+    else if (text.includes("fifo")) action = "Aplicar correctamente el sistema FIFO";
+    else if (text.includes("extintores")) action = "Liberar acceso a extintores";
+    else if (text.includes("racks")) action = "Reubicar paletas correctamente en los racks";
+    else if (text.includes("escáner")) action = "Asegurar el uso correcto de los escáner";
+    else if (text.includes("epis")) action = "Garantizar el uso de EPIS mínimos";
+    else if (text.includes("averiados")) action = "Reportar artículos averiados inmediatamente";
+    else if (text.includes("medidas correctivas")) action = "Ejecutar medidas correctivas para disminuir averías";
+    else if (text.includes("tramerías")) action = "Acomodar artículos correctamente en tramerías";
+    else action = "Tomar acción correctiva sobre el hallazgo";
+
+    return `Acción Generada: ${action}`;
+  };
+
   const calculateScore = () => {
     let totalPoints = 0;
     let maxPoints = 0;
@@ -86,7 +112,6 @@ export const AuditForm: React.FC<AuditFormProps> = ({ initialData, config, onSav
 
     const newActions: ActionItem[] = [];
     
-    // Generación de acciones: SOLO para respuestas "NO"
     answerList.forEach(ans => {
         if (ans.rating === Rating.NO) {
             const q = config.questions.find(q => q.id === ans.questionId);
@@ -100,7 +125,7 @@ export const AuditForm: React.FC<AuditFormProps> = ({ initialData, config, onSav
                     questionId: q.id,
                     questionText: q.text,
                     issueType: 'NO',
-                    suggestedAction: `Corregir hallazgo crítico: "${q.text}"`,
+                    suggestedAction: getSuggestedAction(q.text),
                     responsable: responsable,
                     dueDate: dueDate.toISOString(),
                     status: 'PENDING',
