@@ -18,6 +18,10 @@ export const QUESTIONS: Question[] = [
   { id: 15, text: "¿Los artículos averiados en el área fueron reportados con anterioridad?" },
   { id: 16, text: "¿Se están tomando medidas correctivas para disminuir las averías?" },
   { id: 17, text: "¿Están colocados correctamente los artículos en las tramerías?" },
+  { id: 18, text: "¿Se esta validando la fecha de los articulo perecedero (Sika)" },
+  { id: 19, text: "¿Estan cumpliendo el procedimiento en el proceso de recepción?" },
+  { id: 20, text: "¿El personal conoce el proceso de recepcion y verificacion?" },
+  { id: 21, text: "¿Los articulo en recepcion tienen menos de 24 horas?" },
 ];
 
 export const AREA_MAPPING: { area: string; responsable: string }[] = [
