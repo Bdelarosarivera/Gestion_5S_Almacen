@@ -1,175 +1,203 @@
-import React from 'react';
-import { AuditRecord, ActionItem } from '../types';
-import * as XLSX from 'xlsx';
-import { Edit2, Trash2, Download, Calendar, Share, Info, Eraser } from 'lucide-react';
+import React, { useRef } from 'react';
+import { AuditRecord, Rating } from '../types';
+import { QUESTIONS } from '../constants';
+import { TrendingDown, TrendingUp, AlertOctagon, CheckCircle2, BarChart3, ArrowLeft, MapPin, Camera } from 'lucide-react';
+import html2canvas from 'html2canvas';
 
-interface HistoryProps {
+interface ConsolidatedViewProps {
   records: AuditRecord[];
-  actions: ActionItem[];
-  onEdit: (record: AuditRecord) => void;
-  onDelete: (id: string) => void;
-  onClearHistory?: () => void;
+  onBack: () => void;
 }
 
-export const History: React.FC<HistoryProps> = ({ records, actions, onEdit, onDelete, onClearHistory }) => {
-  
-  const handleExportExcel = () => {
-    if (records.length === 0) {
-      alert("No hay registros para exportar.");
-      return;
+export const ConsolidatedView: React.FC<ConsolidatedViewProps> = ({ records, onBack }) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const handleCaptureScreenshot = async () => {
+    if (containerRef.current) {
+        try {
+            const canvas = await html2canvas(containerRef.current, {
+                backgroundColor: '#121212',
+                scale: 2 // High resolution
+            });
+            const link = document.createElement('a');
+            link.download = `Analisis_Consolidado_${new Date().toISOString().split('T')[0]}.png`;
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+        } catch (error) {
+            console.error("Error capturing screenshot:", error);
+            alert("Error al capturar la imagen. Intente nuevamente.");
+        }
     }
+  };
 
-    const auditData = records.map(r => {
-      const row: any = {
-        'ID': r.id,
-        'Fecha_Auditoria': new Date(r.date).toLocaleDateString(),
-        'Area': r.area,
-        'Responsable': r.responsable || 'N/A',
-        'Auditor': r.auditor,
-        'Puntaje_Porcentaje': r.score
-      };
-      r.answers.forEach(a => { 
-        row[`P${a.questionId}_Calificacion`] = a.rating; 
-      });
-      return row;
+  const questionStats = QUESTIONS.map(q => {
+    let totalPoints = 0;
+    let maxPoints = 0;
+    records.forEach(record => {
+      const answer = record.answers.find(a => a.questionId === q.id);
+      if (answer) {
+        if (answer.rating === Rating.SI) { totalPoints += 1; maxPoints += 1; }
+        else if (answer.rating === Rating.PARCIAL) { totalPoints += 0.5; maxPoints += 1; }
+        else if (answer.rating === Rating.NO) { maxPoints += 1; }
+      }
     });
+    const percentage = maxPoints === 0 ? 0 : Math.round((totalPoints / maxPoints) * 100);
+    return { ...q, percentage, count: maxPoints };
+  });
 
-    const actionData = actions.map(a => ({
-      'ID_Auditoria': a.auditId,
-      'Hallazgo_ID': a.id,
-      'Area_Hallazgo': a.area,
-      'Pregunta_Incumplida': a.questionText,
-      'Accion_Correctiva': a.suggestedAction,
-      'Responsable_Ejecucion': a.responsable,
-      'Fecha_Vencimiento': new Date(a.dueDate).toLocaleDateString(),
-      'Estado': a.status === 'PENDING' ? 'Pendiente' : a.status === 'IN_PROGRESS' ? 'En Proceso' : 'Cerrado',
-      'Comentarios_Seguimiento': a.comments || '',
-      'Fecha_Creacion': new Date(a.createdAt).toLocaleDateString()
-    }));
+  const activeQuestions = questionStats.filter(q => q.count > 0);
+  const topLowestQuestions = [...activeQuestions].sort((a, b) => a.percentage - b.percentage).slice(0, 5);
+  const topHighestQuestions = [...activeQuestions].sort((a, b) => b.percentage - a.percentage).slice(0, 5);
 
-    const wb = XLSX.utils.book_new();
-    const wsAudits = XLSX.utils.json_to_sheet(auditData);
-    const wsActions = XLSX.utils.json_to_sheet(actionData);
+  const areaMap: Record<string, { totalScore: number; count: number }> = {};
+  records.forEach(r => {
+    if (!areaMap[r.area]) {
+      areaMap[r.area] = { totalScore: 0, count: 0 };
+    }
+    areaMap[r.area].totalScore += r.score;
+    areaMap[r.area].count += 1;
+  });
 
-    XLSX.utils.book_append_sheet(wb, wsAudits, "BD_Auditorias");
-    XLSX.utils.book_append_sheet(wb, wsActions, "BD_Plan_Accion");
+  const areaStats = Object.entries(areaMap).map(([area, stats]) => ({
+    name: area,
+    average: Math.round(stats.totalScore / stats.count),
+    count: stats.count
+  }));
 
-    XLSX.writeFile(wb, `AuditCheck_Data_${new Date().toISOString().split('T')[0]}.xlsx`);
-  };
-
-  const getScoreBadge = (score: number) => {
-    let colorClass = score >= 90 ? 'bg-green-900/30 text-green-400 border-green-500/30 shadow-[0_0_10px_rgba(34,197,94,0.1)]' : 
-                     score >= 70 ? 'bg-yellow-900/30 text-yellow-400 border-yellow-500/30' : 
-                     'bg-red-900/30 text-red-400 border-red-500/30 shadow-[0_0_10px_rgba(239,68,68,0.1)]';
-    return <span className={`px-3 py-1 text-xs font-black rounded-lg border ${colorClass}`}>{score}%</span>;
-  };
+  const sortedAreas = [...areaStats].sort((a, b) => a.average - b.average);
+  const midPoint = Math.floor(sortedAreas.length / 2);
+  const topLowestAreas = sortedAreas.slice(0, midPoint).slice(0, 5);
+  const topHighestAreas = sortedAreas.slice(midPoint).reverse().slice(0, 5);
 
   return (
-    <div className="space-y-6 mb-24 animate-fade-in">
-      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 bg-[#1e293b] p-6 rounded-3xl shadow-xl border border-gray-700">
-        <div className="space-y-1">
-          <h2 className="text-3xl font-black text-gray-100 tracking-tighter">Historial de Auditorías</h2>
-          <p className="text-sm text-gray-400">Control maestro de registros almacenados localmente.</p>
-        </div>
-        <div className="flex flex-wrap gap-3 w-full lg:w-auto">
-          {onClearHistory && records.length > 0 && (
-            <button 
-                onClick={() => {
-                    if(window.confirm('¿Borrar TODO el historial? Esta acción no se puede deshacer.')) {
-                        onClearHistory();
-                    }
-                }}
-                className="flex items-center gap-2 bg-red-600/10 text-red-500 border border-red-500/20 px-5 py-3 rounded-2xl transition-all font-bold text-sm hover:bg-red-600 hover:text-white"
-            >
-                <Eraser className="w-5 h-5" /> 
-                Limpiar Historial
-            </button>
-          )}
-          <button 
-            onClick={handleExportExcel}
-            disabled={records.length === 0}
-            className={`flex items-center gap-2 px-6 py-3 rounded-2xl transition-all font-bold shadow-lg w-full lg:w-auto justify-center group ${records.length === 0 ? 'bg-gray-800 text-gray-500 cursor-not-allowed border border-gray-700' : 'bg-[#107c41] hover:bg-[#0b5c30] text-white border border-[#107c41]'}`}
-          >
-            <Download className="w-5 h-5 group-hover:translate-y-0.5 transition-transform" /> 
-            Exportar Excel
+    <div className="space-y-8 mb-24 animate-fade-in" ref={containerRef}>
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-4">
+          <button onClick={onBack} className="p-2 hover:bg-[#1e293b] rounded-full transition-colors text-gray-400 hover:text-white">
+            <ArrowLeft className="w-6 h-6" />
           </button>
+          <div>
+            <h2 className="text-2xl font-bold text-gray-100">Análisis Consolidado</h2>
+            <p className="text-sm text-gray-500">Desglose de cumplimiento por áreas y preguntas críticas.</p>
+          </div>
+        </div>
+        <button 
+          onClick={handleCaptureScreenshot}
+          className="flex items-center gap-2 bg-[#1e293b] border border-gray-700 text-gray-300 px-4 py-2 rounded-lg hover:bg-[#0f172a] hover:text-white transition-all text-sm"
+        >
+          <Camera className="w-4 h-4" /> Capturar
+        </button>
+      </div>
+
+      <div>
+        <h3 className="text-lg font-bold text-gray-200 mb-4 flex items-center gap-2">
+            <MapPin className="w-5 h-5 text-blue-500" /> Rendimiento por Áreas
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Worst Areas */}
+            <div className="bg-[#1e293b] rounded-xl shadow-lg border border-red-900/30 overflow-hidden">
+            <div className="p-4 border-b border-red-900/30 bg-red-900/10 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                <TrendingDown className="w-5 h-5 text-red-500" />
+                <h3 className="font-bold text-red-100">Áreas Críticas</h3>
+                </div>
+            </div>
+            <div className="p-4 space-y-4">
+                {topLowestAreas.length > 0 ? (
+                topLowestAreas.map((item) => (
+                    <div key={item.name} className="space-y-1">
+                    <div className="flex justify-between text-sm">
+                        <span className="font-medium text-gray-300">{item.name}</span>
+                        <span className="font-bold text-red-400">{item.average}%</span>
+                    </div>
+                    <div className="w-full bg-gray-800 rounded-full h-2">
+                        <div className="bg-red-500 h-2 rounded-full transition-all duration-500" style={{ width: `${item.average}%` }}></div>
+                    </div>
+                    </div>
+                ))
+                ) : <p className="text-gray-500 text-sm">Sin datos suficientes.</p>}
+            </div>
+            </div>
+
+            {/* Best Areas */}
+            <div className="bg-[#1e293b] rounded-xl shadow-lg border border-green-900/30 overflow-hidden">
+            <div className="p-4 border-b border-green-900/30 bg-green-900/10 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                <TrendingUp className="w-5 h-5 text-green-500" />
+                <h3 className="font-bold text-green-100">Áreas Destacadas</h3>
+                </div>
+            </div>
+            <div className="p-4 space-y-4">
+                {topHighestAreas.length > 0 ? (
+                topHighestAreas.map((item) => (
+                    <div key={item.name} className="space-y-1">
+                    <div className="flex justify-between text-sm">
+                        <span className="font-medium text-gray-300">{item.name}</span>
+                        <span className="font-bold text-green-400">{item.average}%</span>
+                    </div>
+                    <div className="w-full bg-gray-800 rounded-full h-2">
+                        <div className="bg-green-500 h-2 rounded-full transition-all duration-500" style={{ width: `${item.average}%` }}></div>
+                    </div>
+                    </div>
+                ))
+                ) : <p className="text-gray-500 text-sm">Sin datos suficientes.</p>}
+            </div>
+            </div>
         </div>
       </div>
 
-      <div className="bg-[#1e293b] rounded-3xl shadow-2xl border border-gray-700 overflow-hidden">
-        <div className="p-5 bg-[#0f172a] border-b border-gray-800 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-                <Calendar className="w-4 h-4 text-gray-500" />
-                <h3 className="text-xs font-black text-gray-400 uppercase tracking-[0.2em]">Auditorías Guardadas ({records.length})</h3>
+      <div>
+        <h3 className="text-lg font-bold text-gray-200 mb-4 flex items-center gap-2">
+            <AlertOctagon className="w-5 h-5 text-orange-500" /> Análisis de Hallazgos
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="bg-[#1e293b] rounded-xl shadow-lg border border-red-900/30 overflow-hidden">
+            <div className="p-4 border-b border-red-900/30 bg-red-900/10 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                <AlertOctagon className="w-5 h-5 text-red-500" />
+                <h3 className="font-bold text-red-100">Mayor Incumplimiento</h3>
+                </div>
             </div>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-800">
-            <thead className="bg-[#0f172a]">
-              <tr>
-                <th className="px-6 py-5 text-left text-[10px] font-black text-gray-500 uppercase tracking-widest">Fecha / Auditor</th>
-                <th className="px-6 py-5 text-left text-[10px] font-black text-gray-500 uppercase tracking-widest">Área / Responsable</th>
-                <th className="px-6 py-5 text-left text-[10px] font-black text-gray-500 uppercase tracking-widest text-center">Desempeño</th>
-                <th className="px-6 py-5 text-right text-[10px] font-black text-gray-500 uppercase tracking-widest">Operaciones</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-800">
-              {records.length === 0 ? (
-                <tr>
-                  <td colSpan={4} className="px-6 py-24 text-center">
-                    <div className="flex flex-col items-center gap-3">
-                        <Calendar className="w-12 h-12 text-gray-800" />
-                        <p className="text-gray-500 font-bold">No se han encontrado registros de auditoría.</p>
+            <div className="p-4 space-y-5">
+                {topLowestQuestions.length > 0 ? (
+                topLowestQuestions.map((item) => (
+                    <div key={item.id} className="space-y-1">
+                    <div className="flex justify-between text-sm">
+                        <span className="font-medium text-gray-300 flex-1 pr-4" title={item.text}>{item.id}. {item.text}</span>
+                        <span className="font-bold text-red-400 flex-shrink-0">{item.percentage}%</span>
                     </div>
-                  </td>
-                </tr>
-              ) : (
-                records.map((r) => (
-                  <tr key={r.id} className="hover:bg-white/5 transition-all group animate-fade-in">
-                    <td className="px-6 py-5">
-                        <div className="flex flex-col">
-                            <span className="text-sm font-bold text-gray-100">{new Date(r.date).toLocaleDateString()}</span>
-                            <span className="text-[10px] font-medium text-gray-500 uppercase">{r.auditor}</span>
-                        </div>
-                    </td>
-                    <td className="px-6 py-5">
-                        <div className="flex flex-col">
-                            <span className="text-sm font-black text-blue-400 tracking-tight">{r.area}</span>
-                            <span className="text-[10px] font-medium text-gray-500 uppercase">{r.responsable || 'N/A'}</span>
-                        </div>
-                    </td>
-                    <td className="px-6 py-5 text-center">
-                        {getScoreBadge(r.score)}
-                    </td>
-                    <td className="px-6 py-5 text-right">
-                      <div className="flex justify-end gap-2">
-                        <button 
-                            type="button"
-                            onClick={() => onEdit(r)} 
-                            title="Editar Auditoría"
-                            className="bg-blue-500/10 text-blue-400 hover:bg-blue-600 hover:text-white p-2.5 rounded-xl transition-all shadow-sm border border-blue-500/10"
-                        >
-                            <Edit2 className="w-4 h-4" />
-                        </button>
-                        <button 
-                            type="button"
-                            onClick={() => {
-                                if (window.confirm('¿Eliminar este registro permanentemente?')) {
-                                    onDelete(r.id);
-                                }
-                            }} 
-                            title="Eliminar Auditoría"
-                            className="bg-red-500/10 text-red-500 hover:bg-red-600 hover:text-white p-2.5 rounded-xl transition-all shadow-sm border border-red-500/10"
-                        >
-                            <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
+                    <div className="w-full bg-gray-800 rounded-full h-2.5">
+                        <div className="bg-red-500 h-2.5 rounded-full transition-all duration-500" style={{ width: `${item.percentage}%` }}></div>
+                    </div>
+                    </div>
                 ))
-              )}
-            </tbody>
-          </table>
+                ) : <p className="text-center text-gray-500 py-4">No hay datos suficientes.</p>}
+            </div>
+            </div>
+
+            <div className="bg-[#1e293b] rounded-xl shadow-lg border border-green-900/30 overflow-hidden">
+            <div className="p-4 border-b border-green-900/30 bg-green-900/10 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                <CheckCircle2 className="w-5 h-5 text-green-500" />
+                <h3 className="font-bold text-green-100">Mayor Cumplimiento</h3>
+                </div>
+            </div>
+            <div className="p-4 space-y-5">
+                {topHighestQuestions.length > 0 ? (
+                topHighestQuestions.map((item) => (
+                    <div key={item.id} className="space-y-1">
+                    <div className="flex justify-between text-sm">
+                        <span className="font-medium text-gray-300 flex-1 pr-4" title={item.text}>{item.id}. {item.text}</span>
+                        <span className="font-bold text-green-400 flex-shrink-0">{item.percentage}%</span>
+                    </div>
+                    <div className="w-full bg-gray-800 rounded-full h-2.5">
+                        <div className="bg-green-500 h-2.5 rounded-full transition-all duration-500" style={{ width: `${item.percentage}%` }}></div>
+                    </div>
+                    </div>
+                ))
+                ) : <p className="text-center text-gray-500 py-4">No hay datos suficientes.</p>}
+            </div>
+            </div>
         </div>
       </div>
     </div>
