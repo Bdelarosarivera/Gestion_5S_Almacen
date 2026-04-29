@@ -1,18 +1,20 @@
-import { defineConfig } from 'vite';
-import react from '@vitejs/plugin-react';
+<div align="center">
+<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
+</div>
 
-// https://vitejs.dev/config/
-export default defineConfig({
-  plugins: [react()],
-  base: './', 
-  build: {
-    outDir: 'dist',
-    rollupOptions: {
-      output: {
-        manualChunks: {
-          vendor: ['react', 'react-dom', 'lucide-react', 'recharts', 'xlsx', 'html2canvas']
-        }
-      }
-    }
-  },
-});
+# Run and deploy your AI Studio app
+
+This contains everything you need to run your app locally.
+
+View your app in AI Studio: https://ai.studio/apps/b46e819f-2f4c-45cf-95e8-32f920c573fb
+
+## Run Locally
+
+**Prerequisites:**  Node.js
+
+
+1. Install dependencies:
+   `npm install`
+2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
+3. Run the app:
+   `npm run dev`
