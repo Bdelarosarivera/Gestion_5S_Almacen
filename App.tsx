@@ -17,8 +17,11 @@ import {
   Home, 
   Camera,
   Loader2,
-  ListChecks
+  ListChecks,
+  Lock,
+  LogIn
 } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 
 const DEFAULT_CONFIG: AppConfig = {
   questions: QUESTIONS,
@@ -33,6 +36,47 @@ const App: React.FC = () => {
   const [config, setConfig] = useState<AppConfig>(DEFAULT_CONFIG);
   const [editingRecord, setEditingRecord] = useState<AuditRecord | null>(null);
   const [isInitializing, setIsInitializing] = useState(true);
+
+  // Estado de Autenticación
+  const [isAuthenticated, setIsAuthenticated] = useState(() => {
+    return localStorage.getItem('is_auth') === 'true';
+  });
+  const [password, setPassword] = useState('');
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [loginError, setLoginError] = useState('');
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoggingIn(true);
+    setLoginError('');
+
+    try {
+      const response = await fetch('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        localStorage.setItem('is_auth', 'true');
+        localStorage.setItem('auth_token', data.token);
+        setIsAuthenticated(true);
+      } else {
+        setLoginError('Contraseña incorrecta.');
+      }
+    } catch (error) {
+      setLoginError('Error de conexión.');
+    } finally {
+      setIsLoggingIn(false);
+    }
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('is_auth');
+    localStorage.removeItem('auth_token');
+    setIsAuthenticated(false);
+  };
 
   // Carga inicial
   useEffect(() => {
@@ -156,79 +200,140 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[#0f172a] text-gray-100 flex flex-col">
-      <header className="bg-[#1e293b]/90 backdrop-blur-xl border-b border-gray-800 sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-3 cursor-pointer group" onClick={() => setView('home')}>
-            <div className="bg-blue-600 p-2 rounded-lg group-hover:scale-110 transition-transform">
-              <ClipboardList className="w-5 h-5 text-white" />
-            </div>
-            <h1 className="text-xl font-black tracking-tighter">Audit<span className="text-blue-500">Check</span></h1>
-          </div>
-          <nav className="flex items-center gap-1 sm:gap-2">
-            <NavIcon active={view === 'home'} onClick={() => setView('home')} icon={Home} title="Inicio" />
-            <NavIcon active={view === 'form'} onClick={() => { setEditingRecord(null); setView('form'); }} icon={Plus} title="Auditar" />
-            <NavIcon active={view === 'dashboard' || view === 'consolidated'} onClick={() => setView('dashboard')} icon={BarChart} title="Métricas" />
-            <NavIcon active={view === 'actions'} onClick={() => setView('actions')} icon={ListChecks} title="Planes" />
-            <NavIcon active={view === 'history'} onClick={() => setView('history')} icon={FileText} title="Historial" />
-            <NavIcon active={view === 'ai-editor'} onClick={() => setView('ai-editor')} icon={Camera} title="IA" />
-            <NavIcon active={view === 'settings'} onClick={() => setView('settings')} icon={Settings} title="Ajustes" />
-          </nav>
-        </div>
-      </header>
-
-      <main className="max-w-7xl mx-auto px-4 py-8 w-full flex-1">
-        {view === 'home' && (
-          <div className="max-w-xl mx-auto py-12 space-y-8 animate-fade-in">
-             <div className="text-center space-y-2">
-                <h2 className="text-5xl font-black text-white leading-tight">Gestión Operativa <br/><span className="text-blue-500 underline decoration-blue-500/30">Sin Papel</span></h2>
-                <p className="text-gray-500 text-lg">Digitalice sus auditorías 5S y controle su planta en tiempo real.</p>
-             </div>
-             <div className="grid grid-cols-1 gap-4">
-                <button type="button" onClick={() => { setEditingRecord(null); setView('form'); }} className="flex items-center justify-between p-8 bg-[#1e293b] border border-green-500/20 rounded-3xl hover:border-green-500/50 hover:bg-[#1e293b]/80 transition-all shadow-xl group">
-                    <div className="flex items-center gap-6">
-                        <div className="bg-green-600/10 p-4 rounded-2xl group-hover:bg-green-600/20 transition-colors">
-                            <Plus className="w-10 h-10 text-green-500" />
-                        </div>
-                        <div className="text-left">
-                            <p className="text-2xl font-black text-white">Nueva Auditoría</p>
-                            <p className="text-sm text-gray-500">Iniciar inspección de área ahora</p>
-                        </div>
-                    </div>
-                </button>
-                <div className="grid grid-cols-2 gap-4">
-                    <button type="button" onClick={() => setView('dashboard')} className="p-6 bg-[#1e293b] border border-blue-500/20 rounded-3xl hover:border-blue-500/50 transition-all text-left">
-                        <BarChart className="w-8 h-8 text-blue-500 mb-4" />
-                        <p className="text-lg font-bold">Indicadores</p>
-                        <p className="text-xs text-gray-500">Métricas de planta</p>
-                    </button>
-                    <button type="button" onClick={() => setView('actions')} className="p-6 bg-[#1e293b] border border-amber-500/20 rounded-3xl hover:border-amber-500/50 transition-all text-left">
-                        <ListChecks className="w-8 h-8 text-amber-500 mb-4" />
-                        <p className="text-lg font-bold">Planes de Acción</p>
-                        <p className="text-xs text-gray-500">Hallazgos y tareas</p>
-                    </button>
+      <AnimatePresence mode="wait">
+        {!isAuthenticated ? (
+          <motion.div 
+            key="login"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 flex items-center justify-center p-4 bg-[#0f172a] z-[100]"
+          >
+            <div className="w-full max-w-sm bg-[#1e293b] p-8 rounded-3xl border border-gray-800 shadow-2xl space-y-8">
+              <div className="text-center space-y-2">
+                <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-600/10 rounded-2xl border border-blue-500/20 mb-4">
+                  <Lock className="w-8 h-8 text-blue-500" />
                 </div>
-             </div>
-          </div>
-        )}
-        {view === 'form' && <AuditForm initialData={editingRecord} config={config} onSave={handleSaveAudit} onCancel={() => setView('home')} />}
-        {view === 'dashboard' && <Dashboard records={records} actions={actions} onViewConsolidated={() => setView('consolidated')} onViewActions={() => setView('actions')} onGenerateDemo={generateDemo} />}
-        {view === 'history' && <History records={records} actions={actions} onEdit={(r) => { setEditingRecord(r); setView('form'); }} onDelete={handleDeleteRecord} onClearHistory={handleClearHistory} />}
-        {view === 'consolidated' && <ConsolidatedView records={records} onBack={() => setView('dashboard')} />}
-        {view === 'actions' && (
-          <ActionPlanView 
-            actions={actions} 
-            onUpdateAction={handleUpdateAction} 
-            onDeleteAction={handleDeleteAction} 
-            onClearActions={handleClearActions} 
-          />
-        )}
-        {view === 'settings' && <SettingsView config={config} onUpdateConfig={setConfig} />}
-        {view === 'ai-editor' && <AIEditor />}
-      </main>
+                <h1 className="text-3xl font-black tracking-tighter">Audit<span className="text-blue-500">Check</span></h1>
+                <p className="text-gray-500 text-[10px] font-bold uppercase tracking-widest">Acceso Restringido</p>
+              </div>
 
-      <footer className="max-w-7xl mx-auto px-4 py-8 border-t border-gray-800 w-full opacity-30 text-center">
-        <p className="text-[10px] font-bold tracking-widest uppercase">AuditCheck Pro v2.5 - Acceso Rápido Habilitado</p>
-      </footer>
+              <form onSubmit={handleLogin} className="space-y-4">
+                <input 
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Password"
+                  className="w-full bg-[#0f172a] border border-gray-700 rounded-2xl p-4 text-white outline-none focus:ring-2 focus:ring-blue-500/50 transition-all text-center tracking-widest"
+                  autoFocus
+                />
+                
+                {loginError && (
+                  <p className="text-red-400 text-[10px] font-bold text-center uppercase tracking-wider">{loginError}</p>
+                )}
+
+                <button 
+                  type="submit"
+                  disabled={isLoggingIn}
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white p-4 rounded-2xl font-black uppercase tracking-widest flex items-center justify-center gap-3 transition-all"
+                >
+                  {isLoggingIn ? <Loader2 className="animate-spin w-5 h-5" /> : <LogIn className="w-5 h-5" />}
+                  Entrar
+                </button>
+              </form>
+            </div>
+          </motion.div>
+        ) : (
+          <motion.div 
+            key="app"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="flex flex-col min-h-screen"
+          >
+            <header className="bg-[#1e293b]/90 backdrop-blur-xl border-b border-gray-800 sticky top-0 z-50">
+              <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
+                <div className="flex items-center gap-3 cursor-pointer group" onClick={() => setView('home')}>
+                  <div className="bg-blue-600 p-2 rounded-lg group-hover:scale-110 transition-transform">
+                    <ClipboardList className="w-5 h-5 text-white" />
+                  </div>
+                  <h1 className="text-xl font-black tracking-tighter">Audit<span className="text-blue-500">Check</span></h1>
+                </div>
+                <nav className="flex items-center gap-1 sm:gap-2">
+                  <NavIcon active={view === 'home'} onClick={() => setView('home')} icon={Home} title="Inicio" />
+                  <NavIcon active={view === 'form'} onClick={() => { setEditingRecord(null); setView('form'); }} icon={Plus} title="Auditar" />
+                  <NavIcon active={view === 'dashboard' || view === 'consolidated'} onClick={() => setView('dashboard')} icon={BarChart} title="Métricas" />
+                  <NavIcon active={view === 'actions'} onClick={() => setView('actions')} icon={ListChecks} title="Planes" />
+                  <NavIcon active={view === 'history'} onClick={() => setView('history')} icon={FileText} title="Historial" />
+                  <NavIcon active={view === 'ai-editor'} onClick={() => setView('ai-editor')} icon={Camera} title="IA" />
+                  <NavIcon active={view === 'settings'} onClick={() => setView('settings')} icon={Settings} title="Ajustes" />
+                  <button 
+                    onClick={handleLogout}
+                    title="Cerrar Sesión"
+                    className="p-2.5 rounded-xl text-gray-500 hover:bg-red-600/10 hover:text-red-400 transition-all flex flex-col items-center gap-1"
+                  >
+                    <Lock className="w-5 h-5" />
+                    <span className="text-[9px] font-bold uppercase tracking-tighter sm:hidden">Salir</span>
+                  </button>
+                </nav>
+              </div>
+            </header>
+
+            <main className="max-w-7xl mx-auto px-4 py-8 w-full flex-1">
+              {view === 'home' && (
+                <div className="max-w-xl mx-auto py-12 space-y-8 animate-fade-in">
+                  <div className="text-center space-y-2">
+                      <h2 className="text-5xl font-black text-white leading-tight">Gestión Operativa <br/><span className="text-blue-500 underline decoration-blue-500/30">Sin Papel</span></h2>
+                      <p className="text-gray-500 text-lg">Digitalice sus auditorías 5S y controle su planta en tiempo real.</p>
+                  </div>
+                  <div className="grid grid-cols-1 gap-4">
+                      <button type="button" onClick={() => { setEditingRecord(null); setView('form'); }} className="flex items-center justify-between p-8 bg-[#1e293b] border border-green-500/20 rounded-3xl hover:border-green-500/50 hover:bg-[#1e293b]/80 transition-all shadow-xl group">
+                          <div className="flex items-center gap-6">
+                              <div className="bg-green-600/10 p-4 rounded-2xl group-hover:bg-green-600/20 transition-colors">
+                                  <Plus className="w-10 h-10 text-green-500" />
+                              </div>
+                              <div className="text-left">
+                                  <p className="text-2xl font-black text-white">Nueva Auditoría</p>
+                                  <p className="text-sm text-gray-500">Iniciar inspección de área ahora</p>
+                              </div>
+                          </div>
+                      </button>
+                      <div className="grid grid-cols-2 gap-4">
+                          <button type="button" onClick={() => setView('dashboard')} className="p-6 bg-[#1e293b] border border-blue-500/20 rounded-3xl hover:border-blue-500/50 transition-all text-left">
+                              <BarChart className="w-8 h-8 text-blue-500 mb-4" />
+                              <p className="text-lg font-bold">Indicadores</p>
+                              <p className="text-xs text-gray-500">Métricas de planta</p>
+                          </button>
+                          <button type="button" onClick={() => setView('actions')} className="p-6 bg-[#1e293b] border border-amber-500/20 rounded-3xl hover:border-amber-500/50 transition-all text-left">
+                              <ListChecks className="w-8 h-8 text-amber-500 mb-4" />
+                              <p className="text-lg font-bold">Planes de Acción</p>
+                              <p className="text-xs text-gray-500">Hallazgos y tareas</p>
+                          </button>
+                      </div>
+                  </div>
+                </div>
+              )}
+              {view === 'form' && <AuditForm initialData={editingRecord} config={config} onSave={handleSaveAudit} onCancel={() => setView('home')} />}
+              {view === 'dashboard' && <Dashboard records={records} actions={actions} onViewConsolidated={() => setView('consolidated')} onViewActions={() => setView('actions')} onGenerateDemo={generateDemo} />}
+              {view === 'history' && <History records={records} actions={actions} onEdit={(r) => { setEditingRecord(r); setView('form'); }} onDelete={handleDeleteRecord} onClearHistory={handleClearHistory} />}
+              {view === 'consolidated' && <ConsolidatedView records={records} onBack={() => setView('dashboard')} />}
+              {view === 'actions' && (
+                <ActionPlanView 
+                  actions={actions} 
+                  onUpdateAction={handleUpdateAction} 
+                  onDeleteAction={handleDeleteAction} 
+                  onClearActions={handleClearActions} 
+                />
+              )}
+              {view === 'settings' && <SettingsView config={config} onUpdateConfig={setConfig} />}
+              {view === 'ai-editor' && <AIEditor />}
+            </main>
+
+            <footer className="max-w-7xl mx-auto px-4 py-8 border-t border-gray-800 w-full opacity-30 text-center">
+              <p className="text-[10px] font-bold tracking-widest uppercase">AuditCheck Pro v2.5 - Acceso Rápido Habilitado</p>
+            </footer>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

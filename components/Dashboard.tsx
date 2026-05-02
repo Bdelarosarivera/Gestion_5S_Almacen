@@ -1,5 +1,16 @@
 import React, { useRef, useMemo, useEffect, useState } from 'react';
-import * as Recharts from 'recharts';
+import { 
+  BarChart, 
+  Bar, 
+  XAxis, 
+  YAxis, 
+  Tooltip, 
+  ResponsiveContainer, 
+  Cell, 
+  LabelList,
+  PieChart,
+  Pie
+} from 'recharts';
 import html2canvas from 'html2canvas';
 import { AuditRecord, ActionItem } from '../types';
 import { 
@@ -17,8 +28,13 @@ import {
   Filter,
   Calendar as CalendarIcon,
   X,
-  ChevronDown
+  ChevronDown,
+  Mail,
+  Send,
+  Loader2,
+  TrendingDown
 } from 'lucide-react';
+import * as XLSX from 'xlsx';
 
 interface DashboardProps {
   records: AuditRecord[];
@@ -47,18 +63,33 @@ const StatCard = ({ label, value, color, icon: Icon, onClick }: any) => (
 export const Dashboard: React.FC<DashboardProps> = ({ records = [], actions = [], onViewConsolidated, onViewActions, onGenerateDemo }) => {
   const [isReady, setIsReady] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
-  
+  const [showEmailModal, setShowEmailModal] = useState(false);
+  const [isSending, setIsSending] = useState(false);
+
   // Estados de Filtros
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [selectedArea, setSelectedArea] = useState('ALL');
 
+  // Estados del Formulario de Envío
+  const [emailTo, setEmailTo] = useState('');
+  const [emailSubject, setEmailSubject] = useState(`Reporte de Auditoría 5S - ${new Date().toLocaleDateString()}`);
+  const [emailMessage, setEmailMessage] = useState('Adjunto encontrará el reporte detallado de la auditoría 5S realizada en planta, incluyendo el plan de acción y el desempeño por áreas.');
+
   const dashboardRef = useRef<HTMLDivElement>(null);
+  const chartRef = useRef<HTMLDivElement>(null);
+  const consolidatedRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const timer = setTimeout(() => setIsReady(true), 200);
     return () => clearTimeout(timer);
   }, [records.length]);
+
+  const clearFilters = () => {
+    setStartDate('');
+    setEndDate('');
+    setSelectedArea('ALL');
+  };
 
   const handleCaptureScreenshot = async () => {
     if (dashboardRef.current) {
@@ -108,6 +139,31 @@ export const Dashboard: React.FC<DashboardProps> = ({ records = [], actions = []
     });
   }, [actions, records, startDate, endDate, selectedArea]);
 
+  // Cálculo de estadísticas tipo Consolidado para el reporte
+  const consolidatedStats = useMemo(() => {
+    if (filteredRecords.length === 0) return null;
+
+    const areaMap: Record<string, { totalScore: number; count: number }> = {};
+    filteredRecords.forEach(r => {
+      if (!areaMap[r.area]) areaMap[r.area] = { totalScore: 0, count: 0 };
+      areaMap[r.area].totalScore += r.score;
+      areaMap[r.area].count += 1;
+    });
+
+    const areaStats = Object.entries(areaMap).map(([area, stats]) => ({
+      name: area,
+      average: Math.round(stats.totalScore / stats.count),
+      count: stats.count
+    }));
+
+    const sortedAreas = [...areaStats].sort((a, b) => a.average - b.average);
+    const midPoint = Math.floor(sortedAreas.length / 2);
+    const topLowestAreas = sortedAreas.slice(0, midPoint).slice(0, 5);
+    const topHighestAreas = sortedAreas.slice(midPoint).reverse().slice(0, 5);
+
+    return { topLowestAreas, topHighestAreas };
+  }, [filteredRecords]);
+
   const stats = useMemo(() => {
     if (filteredRecords.length === 0) return null;
 
@@ -155,10 +211,106 @@ export const Dashboard: React.FC<DashboardProps> = ({ records = [], actions = []
     }
   }, [filteredRecords, filteredActions]);
 
-  const clearFilters = () => {
-    setStartDate('');
-    setEndDate('');
-    setSelectedArea('ALL');
+  const handleSendReport = async () => {
+    if (!emailTo) {
+      alert("Por favor ingrese al menos un destinatario.");
+      return;
+    }
+
+    setIsSending(true);
+    try {
+      const captureOptions = {
+        backgroundColor: '#0f172a',
+        scale: 1.5,
+        ignoreElements: (element: Element) => {
+          return element.tagName === 'BUTTON' || element.classList.contains('fixed');
+        }
+      };
+
+      // 1. Capturar Dashboard Completo
+      let dashboardImage = '';
+      if (dashboardRef.current) {
+        const canvas = await html2canvas(dashboardRef.current, captureOptions);
+        dashboardImage = canvas.toDataURL('image/png');
+      }
+      
+      // 2. Capturar Rendimiento por Área (Estilo Consolidado)
+      let performanceImage = '';
+      if (consolidatedRef.current) {
+        const canvas = await html2canvas(consolidatedRef.current, { 
+          backgroundColor: '#0f172a', 
+          scale: 2,
+          useCORS: true
+        });
+        performanceImage = canvas.toDataURL('image/png');
+      }
+
+      // 3. Generar Excel (Audit y Plan de Acción)
+      const wb = XLSX.utils.book_new();
+      
+      const auditData = records.map(r => ({
+        ID: r.id,
+        Fecha: r.date,
+        Área: r.area,
+        Responsable: r.responsable,
+        Resultado: `${r.score}%`,
+        Observaciones: r.notes
+      }));
+      const wsAudit = XLSX.utils.json_to_sheet(auditData);
+      XLSX.utils.book_append_sheet(wb, wsAudit, "Auditorías");
+
+      const actionData = actions.map(a => ({
+        ID: a.id,
+        Área: a.area,
+        Hallazgo: a.finding,
+        Acción: a.action,
+        Responsable: a.responsable,
+        Estatus: a.status === 'OPEN' ? 'ABIERTO' : 'CERRADO',
+        Fecha_Límite: a.dueDate
+      }));
+      const wsActions = XLSX.utils.json_to_sheet(actionData);
+      XLSX.utils.book_append_sheet(wb, wsActions, "Plan de Acción");
+
+      const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'base64' });
+
+      // 4. Enviar al Servidor
+      const token = localStorage.getItem('auth_token') || '';
+      const response = await fetch('/api/send-report', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          to: emailTo,
+          subject: emailSubject,
+          message: emailMessage,
+          attachments: [
+            {
+              filename: `Reporte_Auditoria_5S_${new Date().toISOString().split('T')[0]}.xlsx`,
+              content: excelBuffer
+            }
+          ],
+          images: {
+            chart: dashboardImage,
+            consolidated: performanceImage
+          }
+        })
+      });
+
+      const result = await response.json();
+      if (response.ok) {
+        alert("Reporte enviado correctamente.");
+        setShowEmailModal(false);
+      } else {
+        throw new Error(result.error || result.details || "Error desconocido");
+      }
+    } catch (error: any) {
+      console.error("Error enviando reporte:", error);
+      alert(`Error al enviar el reporte: ${error.message}`);
+    } finally {
+      setIsSending(false);
+    }
   };
 
   const hasActiveFilters = startDate || endDate || selectedArea !== 'ALL';
@@ -183,7 +335,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ records = [], actions = []
     );
   }
 
-  // Si no hay stats por los filtros pero si hay registros generales
   if (!stats && hasActiveFilters) {
      return (
         <div className="space-y-6">
@@ -225,6 +376,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ records = [], actions = []
             </button>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+            <button 
+              onClick={() => setShowEmailModal(true)}
+              className="flex items-center gap-2 bg-green-600/10 text-green-400 border border-green-500/30 px-4 py-2 rounded-xl text-xs font-bold hover:bg-green-600 hover:text-white transition-all"
+              title="Enviar reporte por correo"
+            >
+                <Mail className="w-4 h-4" /> Enviar Reporte
+            </button>
             <button 
               onClick={handleCaptureScreenshot}
               className="flex items-center gap-2 bg-purple-600/10 text-purple-400 border border-purple-500/30 px-4 py-2 rounded-xl text-xs font-bold hover:bg-purple-600 hover:text-white transition-all"
@@ -316,61 +474,230 @@ export const Dashboard: React.FC<DashboardProps> = ({ records = [], actions = []
         <div className="bg-[#1e293b] rounded-2xl border border-gray-800 p-8 flex flex-col items-center justify-center min-h-[400px]">
           <h3 className="text-xs font-bold text-gray-100 uppercase tracking-widest mb-8">RESULTADO DE CALIDAD</h3>
           <div className="relative w-full h-72">
-              <Recharts.ResponsiveContainer width="100%" height="100%">
-                  <Recharts.PieChart>
-                      <Recharts.Pie 
+              <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                      <Pie 
                         data={pieData} 
                         cx="50%" cy="50%" 
                         innerRadius={80} outerRadius={110} 
                         dataKey="value" stroke="none" 
                         startAngle={90} endAngle={-270}
                       >
-                          <Recharts.Cell fill={getBarColor(averageScore)} />
-                          <Recharts.Cell fill="#0f172a" />
-                      </Recharts.Pie>
-                  </Recharts.PieChart>
-              </Recharts.ResponsiveContainer>
+                          <Cell fill={getBarColor(averageScore)} />
+                          <Cell fill="#0f172a" />
+                      </Pie>
+                  </PieChart>
+              </ResponsiveContainer>
               <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
                   <span className="text-6xl font-black text-white leading-none">{averageScore}%</span>
               </div>
           </div>
         </div>
 
-        <div className="lg:col-span-2 bg-[#1e293b] rounded-2xl border border-gray-800 p-8 shadow-2xl">
+        <div className="lg:col-span-2 bg-[#1e293b] rounded-2xl border border-gray-800 p-8 shadow-2xl" ref={chartRef}>
           <h3 className="text-sm font-bold text-white uppercase tracking-widest mb-8">Desempeño por Área (%)</h3>
-          <div className="w-full overflow-y-auto pr-2 custom-scrollbar" style={{ height: '400px' }}>
-            <div style={{ height: `${Math.max(350, chartData.length * 50)}px`, minWidth: '100%' }}>
-              <Recharts.ResponsiveContainer width="100%" height="100%">
-                <Recharts.BarChart data={chartData} layout="vertical" margin={{ left: 10, right: 60, top: 10, bottom: 10 }}>
-                  <Recharts.XAxis type="number" domain={[0, 100]} hide />
-                  <Recharts.YAxis 
-                    dataKey="name" 
-                    type="category" 
-                    width={140} 
-                    tick={{fontSize: 10, fill: '#f1f5f9', fontWeight: 600}} 
-                    axisLine={false} 
-                    tickLine={false}
-                  />
-                  <Recharts.Tooltip 
-                    cursor={{fill: 'rgba(255,255,255,0.05)'}}
-                    contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #334155', borderRadius: '12px' }} 
-                  />
-                  <Recharts.Bar dataKey="score" radius={[0, 6, 6, 0]} barSize={28}>
-                      {chartData.map((entry, index) => <Recharts.Cell key={`cell-${index}`} fill={getBarColor(entry.score)} />)}
-                      <Recharts.LabelList 
-                        dataKey="score" 
-                        position="right" 
-                        formatter={(val: number) => `${val}%`} 
-                        style={{ fill: '#f1f5f9', fontSize: '11px', fontWeight: 'bold' }} 
-                        offset={10}
-                      />
-                  </Recharts.Bar>
-                </Recharts.BarChart>
-              </Recharts.ResponsiveContainer>
-            </div>
+          <div className="w-full pr-2 overflow-x-hidden">
+            {chartData.length > 0 ? (
+              <div style={{ height: `${Math.max(400, chartData.length * 42)}px`, width: '100%' }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart 
+                    data={chartData} 
+                    layout="vertical" 
+                    margin={{ left: 20, right: 60, top: 10, bottom: 10 }}
+                  >
+                    <XAxis type="number" domain={[0, 100]} hide />
+                    <YAxis 
+                      dataKey="name" 
+                      type="category" 
+                      width={140} 
+                      tick={{fontSize: 10, fill: '#f1f5f9', fontWeight: 600}} 
+                      axisLine={false} 
+                      tickLine={false}
+                    />
+                    <Tooltip 
+                      cursor={{fill: 'rgba(255,255,255,0.05)'}}
+                      contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #334155', borderRadius: '12px', fontSize: '12px' }} 
+                    />
+                    <Bar dataKey="score" radius={[0, 6, 6, 0]} barSize={26}>
+                        {chartData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={getBarColor(entry.score)} />
+                        ))}
+                        <LabelList 
+                          dataKey="score" 
+                          position="right" 
+                          formatter={(val: number) => `${val}%`} 
+                          style={{ fill: '#f1f5f9', fontSize: '11px', fontWeight: 'bold' }} 
+                          offset={10}
+                        />
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            ) : (
+              <div className="h-[400px] flex items-center justify-center border border-dashed border-gray-700 rounded-xl">
+                <p className="text-gray-500 italic">Sin datos de desempeño disponibles</p>
+              </div>
+            )}
           </div>
         </div>
       </div>
+
+      {showEmailModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-[#1e293b] w-full max-w-lg rounded-3xl border border-gray-700 shadow-2xl overflow-hidden animate-fade-in">
+            <div className="p-6 border-b border-gray-800 flex justify-between items-center bg-[#0f172a]/50">
+              <h3 className="text-lg font-black text-white flex items-center gap-3 tracking-tighter">
+                <Mail className="text-blue-500" /> ENVIAR REPORTE POR CORREO
+              </h3>
+              <button 
+                onClick={() => setShowEmailModal(false)}
+                className="p-2 text-gray-400 hover:bg-gray-800 rounded-xl transition-all"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="p-6 space-y-4">
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Para (Separe con coma para múltiples)</label>
+                <input 
+                  type="email" 
+                  multiple
+                  value={emailTo}
+                  onChange={(e) => setEmailTo(e.target.value)}
+                  placeholder="ejemplo@correo.com, jefe@planta.com"
+                  className="w-full bg-[#0f172a] border border-gray-700 rounded-xl p-3 text-sm text-white outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Asunto</label>
+                <input 
+                  type="text" 
+                  value={emailSubject}
+                  onChange={(e) => setEmailSubject(e.target.value)}
+                  className="w-full bg-[#0f172a] border border-gray-700 rounded-xl p-3 text-sm text-white outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Mensaje</label>
+                <textarea 
+                  rows={4}
+                  value={emailMessage}
+                  onChange={(e) => setEmailMessage(e.target.value)}
+                  className="w-full bg-[#0f172a] border border-gray-700 rounded-xl p-3 text-sm text-white outline-none focus:ring-2 focus:ring-blue-500/50 transition-all resize-none"
+                />
+              </div>
+
+              <div className="bg-blue-600/10 border border-blue-500/20 p-4 rounded-2xl">
+                <p className="text-[10px] text-blue-400 font-bold uppercase mb-2">Se adjuntará automáticamente:</p>
+                <ul className="text-[10px] text-gray-300 space-y-1">
+                  <li className="flex items-center gap-2">• Reporte Excel (Auditorías + Plan de Acción)</li>
+                  <li className="flex items-center gap-2">• Capturas visuales del desempeño</li>
+                </ul>
+              </div>
+            </div>
+
+            <div className="p-6 bg-[#0f172a]/50 border-t border-gray-800 flex gap-3">
+              <button 
+                onClick={() => setShowEmailModal(false)}
+                className="flex-1 px-6 py-3 rounded-2xl text-sm font-bold text-gray-400 hover:bg-gray-800 transition-all border border-gray-700"
+              >
+                Cancelar
+              </button>
+              <button 
+                onClick={handleSendReport}
+                disabled={isSending}
+                className="flex-none bg-blue-600 hover:bg-blue-700 disabled:bg-gray-700 disabled:cursor-not-allowed text-white px-8 py-3 rounded-2xl flex items-center justify-center gap-3 transition-all font-bold shadow-lg shadow-blue-600/20"
+              >
+                {isSending ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" /> ENVIANDO...
+                  </>
+                ) : (
+                  <>
+                    <Send className="w-5 h-5" /> ENVIAR AHORA
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      <PerformanceReportCapture ref={consolidatedRef} stats={consolidatedStats} />
     </div>
   );
 };
+
+// Sección de Captura (Oculta)
+const PerformanceReportCapture = React.forwardRef<HTMLDivElement, { stats: any }>((props, ref) => {
+  if (!props.stats) return null;
+  const { topLowestAreas, topHighestAreas } = props.stats;
+
+  return (
+    <div 
+      ref={ref} 
+      className="bg-[#0f172a] p-10 w-[1000px] absolute -left-[9999px] top-0 pointer-events-none"
+    >
+      <div className="flex items-center gap-4 mb-8">
+        <div className="bg-blue-600 p-3 rounded-2xl">
+          <TrendingUp className="w-8 h-8 text-white" />
+        </div>
+        <div>
+          <h2 className="text-3xl font-black text-white tracking-tighter uppercase italic">Resumen de Desempeño Operativo</h2>
+          <p className="text-gray-500 text-sm font-bold uppercase tracking-widest">Análisis por Áreas Críticas y Destacadas</p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-8">
+        {/* Áreas Críticas */}
+        <div className="bg-[#1e293b] rounded-3xl border border-red-500/20 overflow-hidden shadow-2xl">
+          <div className="p-6 border-b border-red-500/20 bg-red-500/5 flex items-center gap-3">
+            <TrendingDown className="w-6 h-6 text-red-500" />
+            <h3 className="text-xl font-black text-red-100 italic tracking-tight uppercase tracking-widest">Áreas Críticas</h3>
+          </div>
+          <div className="p-8 space-y-6">
+            {topLowestAreas.length > 0 ? topLowestAreas.map((item: any) => (
+              <div key={item.name} className="space-y-2">
+                <div className="flex justify-between items-end">
+                  <span className="text-lg font-black text-white uppercase tracking-tight">{item.name}</span>
+                  <span className="text-xl font-black text-red-400">{item.average}%</span>
+                </div>
+                <div className="w-full bg-gray-800 rounded-full h-3">
+                  <div className="bg-red-500 h-3 rounded-full shadow-[0_0_15px_rgba(239,68,68,0.4)]" style={{ width: `${item.average}%` }}></div>
+                </div>
+              </div>
+            )) : <p className="text-gray-500 font-bold italic">No hay datos suficientes</p>}
+          </div>
+        </div>
+
+        {/* Áreas Destacadas */}
+        <div className="bg-[#1e293b] rounded-3xl border border-green-500/20 overflow-hidden shadow-2xl">
+          <div className="p-6 border-b border-green-500/20 bg-green-500/5 flex items-center gap-3">
+            <TrendingUp className="w-6 h-6 text-green-500" />
+            <h3 className="text-xl font-black text-green-100 italic tracking-tight uppercase tracking-widest">Áreas Destacadas</h3>
+          </div>
+          <div className="p-8 space-y-6">
+            {topHighestAreas.length > 0 ? topHighestAreas.map((item: any) => (
+              <div key={item.name} className="space-y-2">
+                <div className="flex justify-between items-end">
+                  <span className="text-lg font-black text-white uppercase tracking-tight">{item.name}</span>
+                  <span className="text-xl font-black text-green-400">{item.average}%</span>
+                </div>
+                <div className="w-full bg-gray-800 rounded-full h-3">
+                  <div className="bg-green-500 h-3 rounded-full shadow-[0_0_15px_rgba(34,197,94,0.4)]" style={{ width: `${item.average}%` }}></div>
+                </div>
+              </div>
+            )) : <p className="text-gray-500 font-bold italic">No hay datos suficientes</p>}
+          </div>
+        </div>
+      </div>
+      
+      <div className="mt-12 pt-8 border-t border-gray-800 text-center">
+        <p className="text-[10px] font-black text-gray-600 uppercase tracking-[0.3em]">Reporte Automatizado - AuditCheck Pro</p>
+      </div>
+    </div>
+  );
+});
+PerformanceReportCapture.displayName = 'PerformanceReportCapture';
