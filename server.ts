@@ -9,7 +9,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 async function startServer() {
   const app = express();
-  const PORT = 3000;
+  const PORT = process.env.PORT || 3000;
 
   // Seguridad: Configurar cabeceras de seguridad
   app.use(helmet({
@@ -127,22 +127,31 @@ async function startServer() {
   });
 
   // Integración con Vite
+  console.log(`Verificando modo de ejecución... NODE_ENV: ${process.env.NODE_ENV}`);
+
   if (process.env.NODE_ENV !== 'production') {
+    console.log('Iniciando en modo Desarrollo con Vite Middleware...');
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: 'spa',
     });
     app.use(vite.middlewares);
   } else {
-    app.use(express.static(path.join(__dirname, 'dist')));
-    app.get('*', (req, res) => {
-      res.sendFile(path.join(__dirname, 'dist', 'index.html'));
+    const distPath = path.join(__dirname, 'dist');
+    console.log(`Iniciando en modo Producción. Sirviendo archivos desde: ${distPath}`);
+    app.use(express.static(distPath));
+    app.get('*all', (req, res) => {
+      res.sendFile(path.join(distPath, 'index.html'));
     });
   }
 
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Servidor ejecutándose en http://localhost:${PORT}`);
+    console.log(`Servidor activo y escuchando en: http://0.0.0.0:${PORT}`);
   });
 }
 
-startServer();
+console.log('Cargando servidor...');
+startServer().catch(err => {
+  console.error('ERROR FATAL AL INICIAR EL SERVIDOR:', err);
+  process.exit(1);
+});
