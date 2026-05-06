@@ -305,8 +305,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ records = [], actions = []
         alert("Reporte enviado correctamente.");
         setShowEmailModal(false);
       } else {
-        const errorMsg = result.error || result.details || "Error desconocido en el servidor";
-        throw new Error(`${errorMsg} (Status: ${response.status})`);
+        const errorMsg = result.error || "Error en el servidor";
+        const details = result.details ? `\nDetalles: ${result.details}` : "";
+        throw new Error(`${errorMsg}${details} (Status: ${response.status})`);
       }
     } catch (error: any) {
       console.error("Error enviando reporte:", error);
