@@ -1,6 +1,7 @@
 import express from 'express';
 import { createServer as createViteServer } from 'vite';
 import nodemailer from 'nodemailer';
+import dns from 'dns';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import helmet from 'helmet';
@@ -78,6 +79,10 @@ async function startServer() {
         auth: {
           user: SMTP_USER,
           pass: SMTP_PASS,
+        },
+        // Fuerza el uso de IPv4 en la resolución DNS
+        lookup: (hostname: any, options: any, callback: any) => {
+          dns.lookup(hostname, { family: 4 }, callback);
         },
         // Fuerza el uso de IPv4 estrictamente (evita ENETUNREACH en IPv6)
         family: 4,
