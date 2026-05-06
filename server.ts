@@ -33,24 +33,35 @@ async function startServer() {
 
   // API para verificar contraseña (Login)
   app.post('/api/login', (req, res) => {
+    console.log('Intento de login recibido');
     const { password } = req.body;
     const ADMIN_PASS = process.env.ADMIN_PASSWORD || 'admin123';
 
     if (password === ADMIN_PASS) {
+      console.log('Login exitoso');
       res.json({ success: true, token: ADMIN_PASS }); // En un entorno real usaríamos JWT
     } else {
+      console.warn('Intento de login fallido');
       res.status(401).json({ error: 'Contraseña incorrecta' });
     }
   });
 
   // API para enviar el reporte (PROTEGIDA)
   app.post('/api/send-report', verifyAuth, async (req, res) => {
+    console.log('Solicitud de envío de reporte recibida');
     const { to, subject, message, attachments, images } = req.body;
+    
+    console.log(`Destinatarios: ${to}`);
+    console.log(`Tamaño del mensaje: ${message?.length || 0} caracteres`);
+    console.log(`Tamaño de adjuntos: ${attachments?.[0]?.content?.length || 0} bytes`);
+    console.log(`Tamaño de imagen 1: ${images?.chart?.length || 0} bytes`);
+    console.log(`Tamaño de imagen 2: ${images?.consolidated?.length || 0} bytes`);
 
     // Verificar configuración SMTP
     const { SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS } = process.env;
 
     if (!SMTP_HOST || !SMTP_USER || !SMTP_PASS) {
+      console.error('Configuración SMTP incompleta');
       return res.status(500).json({ 
         error: 'Configuración SMTP incompleta en las variables de entorno.',
         details: 'Se requieren SMTP_HOST, SMTP_USER y SMTP_PASS.' 
@@ -66,7 +77,15 @@ async function startServer() {
           user: SMTP_USER,
           pass: SMTP_PASS,
         },
+        // Aumentar el tiempo de espera para conexiones lentas
+        connectionTimeout: 10000,
+        greetingTimeout: 10000,
+        socketTimeout: 15000,
       });
+
+      console.log('Verificando conexión SMTP...');
+      await transporter.verify();
+      console.log('Conexión SMTP verificada exitosamente');
 
       // Construir el cuerpo HTML con las imágenes embebidas
       let htmlBody = `<div style="font-family: Arial, sans-serif; color: #333; max-width: 800px; margin: 0 auto; background: #f8fafc; padding: 20px; border-radius: 12px;">
@@ -106,13 +125,13 @@ async function startServer() {
           },
           // Imágenes incrustadas (CID)
           {
-            filename: 'dashboard_capture.png',
-            content: Buffer.from(images.chart.split(',')[1], 'base64'),
+            filename: 'dashboard_capture.jpg',
+            content: Buffer.from(images.chart.includes(',') ? images.chart.split(',')[1] : images.chart, 'base64'),
             cid: 'dashboard_image'
           },
           {
-            filename: 'performance_summary.png',
-            content: Buffer.from(images.consolidated.split(',')[1], 'base64'),
+            filename: 'performance_summary.jpg',
+            content: Buffer.from(images.consolidated.includes(',') ? images.consolidated.split(',')[1] : images.consolidated, 'base64'),
             cid: 'performance_image'
           }
         ],
@@ -140,13 +159,16 @@ async function startServer() {
     const distPath = path.join(__dirname, 'dist');
     console.log(`Iniciando en modo Producción. Sirviendo archivos desde: ${distPath}`);
     app.use(express.static(distPath));
-    app.get('*all', (req, res) => {
+    app.get('*', (req, res) => {
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }
 
   app.listen(PORT, '0.0.0.0', () => {
+    console.log(`=========================================`);
     console.log(`Servidor activo y escuchando en: http://0.0.0.0:${PORT}`);
+    console.log(`Ambiente: ${process.env.NODE_ENV || 'development'}`);
+    console.log(`=========================================`);
   });
 }
 
