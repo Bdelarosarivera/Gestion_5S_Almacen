@@ -69,28 +69,48 @@ async function startServer() {
     }
 
     try {
-      console.log('--- INTENTO DE ENVÍO RESILIENTE (RENDER OPTIMIZED) ---');
+      console.log('--- INTENTO DE ENVÍO RESILIENTE (IPV4 FORCED) ---');
       
-      // Usamos el modo 'service: gmail' que es el más compatible
-      // Forzamos IPv4 y tiempos de espera agresivos
+      // Resolución manual de DNS para forzar IPv4 y evitar ENETUNREACH
+      const getIPv4 = async (hostname: string): Promise<string> => {
+        return new Promise((resolve, reject) => {
+          dns.lookup(hostname, { family: 4 }, (err, address) => {
+            if (err) reject(err);
+            else resolve(address);
+          });
+        });
+      };
+
+      let host = 'smtp.gmail.com';
+      try {
+        const ipv4 = await getIPv4('smtp.gmail.com');
+        console.log(`DNS: smtp.gmail.com resuelto a IPv4: ${ipv4}`);
+        host = ipv4;
+      } catch (dnsErr) {
+        console.warn('DNS: Fallo al resolver smtp.gmail.com a IPv4, usando hostname:', dnsErr);
+      }
+
+      // NO usar 'service: gmail' ya que eso ignora host/port y puede forzar IPv6
       const transporter = nodemailer.createTransport({
-        service: 'gmail',
+        host: host,
+        port: 465,
+        secure: true, // SSL/TLS
         auth: {
           user: SMTP_USER,
           pass: SMTP_PASS,
         },
-        family: 4, // Fuerza IPv4 estrictamente
+        family: 4, // Fuerza IPv4 a nivel de socket
         tls: {
-          rejectUnauthorized: false, // Evita fallos de validación de certificado en la red de Render
-          minVersion: 'TLSv1.2'
+          rejectUnauthorized: false,
+          minVersion: 'TLSv1.2',
+          servername: 'smtp.gmail.com' // Necesario para que el certificado SSL coincida con el dominio
         },
-        // Tiempos de espera optimizados para evitar el "Connection Timeout" de Render
-        connectionTimeout: 40000,
-        greetingTimeout: 30000,
-        socketTimeout: 60000,
+        connectionTimeout: 30000,
+        greetingTimeout: 20000,
+        socketTimeout: 30000,
       });
 
-      console.log('Enviando correo...');
+      console.log(`Enviando correo a través de ${host}...`);
 
       // Construir el cuerpo HTML con las imágenes embebidas
       let htmlBody = `<div style="font-family: Arial, sans-serif; color: #333; max-width: 800px; margin: 0 auto; background: #f8fafc; padding: 20px; border-radius: 12px;">
