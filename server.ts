@@ -7,8 +7,8 @@ import { fileURLToPath } from 'url';
 import helmet from 'helmet';
 
 // SOLUCIÓN DEFINITIVA PARA ENETUNREACH: Forzar IPv4 globalmente en las resoluciones DNS
-if (typeof dns.setDefaultResultOrder === 'function') {
-  dns.setDefaultResultOrder('ipv4first');
+if (dns && (dns as any).setDefaultResultOrder) {
+  (dns as any).setDefaultResultOrder('ipv4first');
 }
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -57,62 +57,40 @@ async function startServer() {
     console.log('Solicitud de envío de reporte recibida');
     const { to, subject, message, attachments, images } = req.body;
     
-    console.log(`Destinatarios: ${to}`);
-    console.log(`Tamaño del mensaje: ${message?.length || 0} caracteres`);
-    console.log(`Tamaño de adjuntos: ${attachments?.[0]?.content?.length || 0} bytes`);
-    console.log(`Tamaño de imagen 1: ${images?.chart?.length || 0} bytes`);
-    console.log(`Tamaño de imagen 2: ${images?.consolidated?.length || 0} bytes`);
-
     // Verificar configuración SMTP
-    const { SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS } = process.env;
+    const { SMTP_USER, SMTP_PASS } = process.env;
 
-    if (!SMTP_HOST || !SMTP_USER || !SMTP_PASS) {
+    if (!SMTP_USER || !SMTP_PASS) {
       console.error('Configuración SMTP incompleta');
       return res.status(500).json({ 
-        error: 'Configuración SMTP incompleta en las variables de entorno.',
-        details: 'Se requieren SMTP_HOST, SMTP_USER y SMTP_PASS.' 
+        error: 'Configuración SMTP incompleta',
+        details: 'Faltan credenciales del correo (SMTP_USER/PASS).' 
       });
     }
 
     try {
-      console.log('--- NUEVO INTENTO DE ENVÍO CON RESOLUCIÓN MANUAL IPv4 ---');
+      console.log('--- INTENTO DE ENVÍO RESILIENTE (RENDER OPTIMIZED) ---');
       
-      // Resolución manual para esquivar IPv6 en entornos problemáticos como Render
-      let resolvedHost = 'smtp.gmail.com';
-      try {
-        const lookup = await new Promise<{address: string}>((resolve, reject) => {
-          dns.lookup('smtp.gmail.com', { family: 4 }, (err, address) => {
-            if (err) reject(err);
-            else resolve({ address });
-          });
-        });
-        resolvedHost = lookup.address;
-        console.log(`Host smtp.gmail.com resuelto a IPv4: ${resolvedHost}`);
-      } catch (dnsErr) {
-        console.warn('Error en resolución manual de DNS, usando hostname directamente:', dnsErr);
-      }
-
+      // Usamos el modo 'service: gmail' que es el más compatible
+      // Forzamos IPv4 y tiempos de espera agresivos
       const transporter = nodemailer.createTransport({
-        host: resolvedHost,
-        port: 465,
-        secure: true, // SSL/TLS
+        service: 'gmail',
         auth: {
           user: SMTP_USER,
           pass: SMTP_PASS,
         },
-        // Configuración crítica
-        family: 4, 
+        family: 4, // Fuerza IPv4 estrictamente
         tls: {
-          rejectUnauthorized: false,
-          minVersion: 'TLSv1.2',
-          servername: 'smtp.gmail.com' // Necesario para validar SSL contra la IP
+          rejectUnauthorized: false, // Evita fallos de validación de certificado en la red de Render
+          minVersion: 'TLSv1.2'
         },
-        connectionTimeout: 20000,
-        greetingTimeout: 20000,
-        socketTimeout: 30000,
+        // Tiempos de espera optimizados para evitar el "Connection Timeout" de Render
+        connectionTimeout: 40000,
+        greetingTimeout: 30000,
+        socketTimeout: 60000,
       });
 
-      console.log('Iniciando envío de correo...');
+      console.log('Enviando correo...');
 
       // Construir el cuerpo HTML con las imágenes embebidas
       let htmlBody = `<div style="font-family: Arial, sans-serif; color: #333; max-width: 800px; margin: 0 auto; background: #f8fafc; padding: 20px; border-radius: 12px;">
