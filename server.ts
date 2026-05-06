@@ -6,6 +6,11 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import helmet from 'helmet';
 
+// SOLUCIÓN DEFINITIVA PARA ENETUNREACH: Forzar IPv4 globalmente en las resoluciones DNS
+if (typeof dns.setDefaultResultOrder === 'function') {
+  dns.setDefaultResultOrder('ipv4first');
+}
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 async function startServer() {
@@ -70,39 +75,29 @@ async function startServer() {
     }
 
     try {
-      // Configuración manual estricta por puerto 465 (SSL)
-      // El puerto 465 es más fiable en entornos de nube que el 587
-      const transportOptions: any = {
+      console.log(`Iniciando transporte SMTP hacia smtp.gmail.com:465 usando IPv4 Preferente`);
+      
+      const transporter = nodemailer.createTransport({
         host: 'smtp.gmail.com',
         port: 465,
-        secure: true, // SSL/TLS directo
+        secure: true, // SSL/TLS
         auth: {
           user: SMTP_USER,
           pass: SMTP_PASS,
         },
-        // Fuerza el uso de IPv4 en la resolución DNS
-        lookup: (hostname: any, options: any, callback: any) => {
-          dns.lookup(hostname, { family: 4 }, callback);
-        },
-        // Fuerza el uso de IPv4 estrictamente (evita ENETUNREACH en IPv6)
-        family: 4,
+        family: 4, // Forzar IPv4 a nivel de socket
         tls: {
-          // Permite certificados aunque el entorno tenga problemas de validación de CA
           rejectUnauthorized: false,
           minVersion: 'TLSv1.2'
         },
-        // Tiempos de espera generosos para la conexión inicial
-        connectionTimeout: 20000,
-        greetingTimeout: 20000,
-        socketTimeout: 30000,
-      };
+        connectionTimeout: 40000, // 40 segundos ya que los entornos cloud son lentos
+        greetingTimeout: 30000,
+        socketTimeout: 60000,
+      });
 
-      console.log(`Configurando transporte manual SSL hacia smtp.gmail.com:465 (IPv4 forzado)`);
-      const transporter = nodemailer.createTransport(transportOptions);
-
-      console.log('Verificando conexión SMTP SSL...');
+      console.log('Verificando conexión con el servidor de Google...');
       await transporter.verify();
-      console.log('Conexión SMTP verificada exitosamente');
+      console.log('Conexión establecida y verificada.');
 
       // Construir el cuerpo HTML con las imágenes embebidas
       let htmlBody = `<div style="font-family: Arial, sans-serif; color: #333; max-width: 800px; margin: 0 auto; background: #f8fafc; padding: 20px; border-radius: 12px;">
