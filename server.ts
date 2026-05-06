@@ -75,7 +75,7 @@ async function startServer() {
     }
 
     try {
-      console.log(`Iniciando transporte SMTP hacia smtp.gmail.com:465 usando IPv4 Preferente`);
+      console.log(`Iniciando transporte SMTP hacia smtp.gmail.com:465 usando IPv4 Estricto`);
       
       const transporter = nodemailer.createTransport({
         host: 'smtp.gmail.com',
@@ -85,19 +85,19 @@ async function startServer() {
           user: SMTP_USER,
           pass: SMTP_PASS,
         },
-        family: 4, // Forzar IPv4 a nivel de socket
+        // Configuración crítica para evitar ENETUNREACH en IPv6
+        family: 4, 
         tls: {
           rejectUnauthorized: false,
-          minVersion: 'TLSv1.2'
+          minVersion: 'TLSv1.2',
+          servername: 'smtp.gmail.com' // Necesario si la IP se resuelve antes
         },
-        connectionTimeout: 40000, // 40 segundos ya que los entornos cloud son lentos
-        greetingTimeout: 30000,
-        socketTimeout: 60000,
+        connectionTimeout: 30000,
+        greetingTimeout: 20000,
+        socketTimeout: 45000,
       });
 
-      console.log('Verificando conexión con el servidor de Google...');
-      await transporter.verify();
-      console.log('Conexión establecida y verificada.');
+      console.log('Enviando correo directamente (bypass verify)...');
 
       // Construir el cuerpo HTML con las imágenes embebidas
       let htmlBody = `<div style="font-family: Arial, sans-serif; color: #333; max-width: 800px; margin: 0 auto; background: #f8fafc; padding: 20px; border-radius: 12px;">
