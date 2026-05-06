@@ -3,6 +3,7 @@ import { createServer as createViteServer } from 'vite';
 import nodemailer from 'nodemailer';
 import dns from 'dns';
 import path from 'path';
+import fs from 'fs/promises';
 import { fileURLToPath } from 'url';
 import helmet from 'helmet';
 
@@ -12,10 +13,19 @@ if (dns && (dns as any).setDefaultResultOrder) {
 }
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const DATA_FILE = path.join(__dirname, 'data.json');
 
 async function startServer() {
   const app = express();
   const PORT = process.env.PORT || 3000;
+
+  // Inicializar archivo de datos si no existe
+  try {
+    await fs.access(DATA_FILE);
+  } catch {
+    console.log('Creando archivo de datos inicial...');
+    await fs.writeFile(DATA_FILE, JSON.stringify({ records: [], actions: [], config: null }));
+  }
 
   // Seguridad: Configurar cabeceras de seguridad
   app.use(helmet({
@@ -37,20 +47,10 @@ async function startServer() {
     }
   };
 
-  // API para verificar contraseña (Login)
-  app.post('/api/login', (req, res) => {
-    console.log('Intento de login recibido');
-    const { password } = req.body;
-    const ADMIN_PASS = process.env.ADMIN_PASSWORD || 'admin123';
-
-    if (password === ADMIN_PASS) {
-      console.log('Login exitoso');
-      res.json({ success: true, token: ADMIN_PASS }); // En un entorno real usaríamos JWT
-    } else {
-      console.warn('Intento de login fallido');
-      res.status(401).json({ error: 'Contraseña incorrecta' });
-    }
-  });
+  // API para cargar todos los datos sincronizados (DEPRECATED - Moved to Firestore)
+  // app.get('/api/data', verifyAuth, ...)
+  // app.post('/api/data', verifyAuth, ...)
+  // app.post('/api/login', ...)
 
   // API para enviar el reporte (PROTEGIDA)
   app.post('/api/send-report', verifyAuth, async (req, res) => {

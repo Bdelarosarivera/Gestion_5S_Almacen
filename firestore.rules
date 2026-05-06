@@ -1,0 +1,80 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 0. Default Deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // PHASE 3: Primitives
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(data) {
+      return isSignedIn() && data.userId == request.auth.uid;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // PHASE 4: Validation Helpers
+    function isValidAudit(data) {
+      return data.id is string && data.id.size() > 0 &&
+             data.area is string && data.area.size() > 0 &&
+             data.auditor is string && data.auditor.size() > 0 &&
+             data.date is string &&
+             data.score is number &&
+             data.answers is list &&
+             data.userId == request.auth.uid;
+    }
+
+    function isValidAction(data) {
+      return data.id is string && data.id.size() > 0 &&
+             data.auditId is string && data.auditId.size() > 0 &&
+             data.area is string && data.area.size() > 0 &&
+             data.questionId is number &&
+             data.suggestedAction is string && data.suggestedAction.size() <= 1000 &&
+             data.status in ['PENDING', 'IN_PROGRESS', 'CLOSED'] &&
+             data.userId == request.auth.uid;
+    }
+
+    function isValidConfig(data) {
+      return data.areas is list &&
+             data.responsables is list &&
+             data.questions is list &&
+             data.userId == request.auth.uid;
+    }
+
+    // Collection Rules
+    match /audits/{auditId} {
+      allow read: if isOwner(existing());
+      allow create: if isSignedIn() && isValidId(auditId) && isValidAudit(incoming());
+      allow update: if isOwner(existing()) && isValidAudit(incoming()) && incoming().userId == existing().userId;
+      allow delete: if isOwner(existing());
+    }
+
+    match /actions/{actionId} {
+      allow read: if isOwner(existing());
+      allow create: if isSignedIn() && isValidId(actionId) && isValidAction(incoming());
+      allow update: if isOwner(existing()) && isValidAction(incoming()) && incoming().userId == existing().userId;
+      allow delete: if isOwner(existing());
+    }
+
+    match /config/{configId} {
+      allow read: if isOwner(existing());
+      allow create: if isSignedIn() && isValidId(configId) && isValidConfig(incoming());
+      allow update: if isOwner(existing()) && isValidConfig(incoming()) && incoming().userId == existing().userId;
+      allow delete: if isOwner(existing());
+    }
+  }
+}

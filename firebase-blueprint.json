@@ -1,0 +1,94 @@
+{
+  "entities": {
+    "auditRecord": {
+      "title": "Audit Record",
+      "description": "Information about a 5S audit conducted in an area.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "area": { "type": "string" },
+        "auditor": { "type": "string" },
+        "responsable": { "type": "string" },
+        "date": { "type": "string", "format": "date-time" },
+        "score": { "type": "number" },
+        "answers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "questionId": { "type": "number" },
+              "rating": { "type": "string", "enum": ["SI", "NO", "PARCIAL", "N/A"] }
+            }
+          }
+        },
+        "userId": { "type": "string", "description": "Owner of the record" }
+      },
+      "required": ["id", "area", "auditor", "date", "score", "answers", "userId"]
+    },
+    "actionItem": {
+      "title": "Action Item",
+      "description": "A task created to address an issue found during an audit.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "auditId": { "type": "string" },
+        "area": { "type": "string" },
+        "questionId": { "type": "number" },
+        "questionText": { "type": "string" },
+        "issueType": { "type": "string", "enum": ["NO"] },
+        "suggestedAction": { "type": "string" },
+        "responsable": { "type": "string" },
+        "dueDate": { "type": "string", "format": "date" },
+        "status": { "type": "string", "enum": ["PENDING", "IN_PROGRESS", "CLOSED"] },
+        "comments": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "userId": { "type": "string" }
+      },
+      "required": ["id", "auditId", "area", "questionId", "questionText", "issueType", "suggestedAction", "responsable", "dueDate", "status", "createdAt", "userId"]
+    },
+    "appConfig": {
+      "title": "App Configuration",
+      "description": "Global settings for the application.",
+      "type": "object",
+      "properties": {
+        "areas": { "type": "array", "items": { "type": "string" } },
+        "responsables": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": { "type": "string" },
+              "area": { "type": "string" }
+            }
+          }
+        },
+        "questions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "number" },
+              "text": { "type": "string" }
+            }
+          }
+        },
+        "userId": { "type": "string" }
+      },
+      "required": ["areas", "responsables", "questions", "userId"]
+    }
+  },
+  "firestore": {
+    "audits": {
+      "schema": "auditRecord",
+      "description": "Collection of audit records."
+    },
+    "actions": {
+      "schema": "actionItem",
+      "description": "Collection of action items for improvements."
+    },
+    "config": {
+      "schema": "appConfig",
+      "description": "Per-user application configuration."
+    }
+  }
+}
