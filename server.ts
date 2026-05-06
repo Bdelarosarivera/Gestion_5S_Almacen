@@ -69,7 +69,7 @@ async function startServer() {
     }
 
     try {
-      const transporter = nodemailer.createTransport({
+      const transportOptions: any = {
         host: SMTP_HOST,
         port: parseInt(SMTP_PORT || '587'),
         secure: SMTP_PORT === '465',
@@ -77,11 +77,16 @@ async function startServer() {
           user: SMTP_USER,
           pass: SMTP_PASS,
         },
+        // Forzar el uso de IPv4 (familia 4) para evitar ENETUNREACH en IPv6
+        family: 4,
         // Aumentar el tiempo de espera para conexiones lentas
-        connectionTimeout: 10000,
-        greetingTimeout: 10000,
-        socketTimeout: 15000,
-      });
+        connectionTimeout: 15000,
+        greetingTimeout: 15000,
+        socketTimeout: 20000,
+      };
+
+      console.log(`Configurando transporte SMTP hacia ${SMTP_HOST}:${SMTP_PORT} (IPv4 forzado)`);
+      const transporter = nodemailer.createTransport(transportOptions);
 
       console.log('Verificando conexión SMTP...');
       await transporter.verify();
