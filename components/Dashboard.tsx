@@ -221,7 +221,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ records = [], actions = []
     try {
       const captureOptions = {
         backgroundColor: '#0f172a',
-        scale: 1.5,
+        scale: 1.0, // Reducido para evitar payloads masivos
+        logging: false,
+        useCORS: true,
         ignoreElements: (element: Element) => {
           return element.tagName === 'BUTTON' || element.classList.contains('fixed');
         }
@@ -231,7 +233,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ records = [], actions = []
       let dashboardImage = '';
       if (dashboardRef.current) {
         const canvas = await html2canvas(dashboardRef.current, captureOptions);
-        dashboardImage = canvas.toDataURL('image/png');
+        dashboardImage = canvas.toDataURL('image/jpeg', 0.7); // Usar JPEG con calidad 0.7 para comprimir
       }
       
       // 2. Capturar Rendimiento por Área (Estilo Consolidado)
@@ -239,10 +241,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ records = [], actions = []
       if (consolidatedRef.current) {
         const canvas = await html2canvas(consolidatedRef.current, { 
           backgroundColor: '#0f172a', 
-          scale: 2,
+          scale: 1.2, // Reducido
           useCORS: true
         });
-        performanceImage = canvas.toDataURL('image/png');
+        performanceImage = canvas.toDataURL('image/jpeg', 0.7); // Comprimir
       }
 
       // 3. Generar Excel (Audit y Plan de Acción)
@@ -303,11 +305,18 @@ export const Dashboard: React.FC<DashboardProps> = ({ records = [], actions = []
         alert("Reporte enviado correctamente.");
         setShowEmailModal(false);
       } else {
-        throw new Error(result.error || result.details || "Error desconocido");
+        const errorMsg = result.error || result.details || "Error desconocido en el servidor";
+        throw new Error(`${errorMsg} (Status: ${response.status})`);
       }
     } catch (error: any) {
       console.error("Error enviando reporte:", error);
-      alert(`Error al enviar el reporte: ${error.message}`);
+      let userFriendlyMessage = error.message;
+      
+      if (error.message === 'Failed to fetch') {
+        userFriendlyMessage = "Error de red o conexión: No se pudo contactar con el servidor. Verifique su conexión o si el servidor sigue activo.";
+      }
+      
+      alert(`Error al enviar el reporte: ${userFriendlyMessage}`);
     } finally {
       setIsSending(false);
     }
@@ -459,7 +468,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ records = [], actions = []
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard label="AREAS AUDITADAS" value={filteredRecords.length} color="text-blue-400" icon={ClipboardList} />
-        <StatCard label="RESULTADO GENERAL" value={`${averageScore}%`} color={averageScore >= 80 ? 'text-green-400' : 'text-yellow-400'} icon={Target} />
+        <StatCard label="RESULTADO GENERAL" value={(averageScore || 0) + "%"} color={averageScore >= 80 ? 'text-green-400' : 'text-yellow-400'} icon={Target} />
         <StatCard 
           label="ACCIONES PENDIENTES" 
           value={openActions} 
@@ -494,40 +503,40 @@ export const Dashboard: React.FC<DashboardProps> = ({ records = [], actions = []
           </div>
         </div>
 
-        <div className="lg:col-span-2 bg-[#1e293b] rounded-2xl border border-gray-800 p-8 shadow-2xl" ref={chartRef}>
+        <div className="lg:col-span-2 bg-[#1e293b] rounded-2xl border border-gray-800 p-6 md:p-8 shadow-2xl" ref={chartRef}>
           <h3 className="text-sm font-bold text-white uppercase tracking-widest mb-8">Desempeño por Área (%)</h3>
-          <div className="w-full pr-2 overflow-x-hidden">
-            {chartData.length > 0 ? (
-              <div style={{ height: `${Math.max(400, chartData.length * 42)}px`, width: '100%' }}>
+          <div className="w-full min-h-[400px]">
+            {chartData && chartData.length > 0 ? (
+              <div style={{ height: (chartData.length * 45) + 'px', minHeight: '400px', width: '100%' }}>
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart 
                     data={chartData} 
                     layout="vertical" 
-                    margin={{ left: 20, right: 60, top: 10, bottom: 10 }}
+                    margin={{ left: 5, right: 70, top: 10, bottom: 10 }}
                   >
                     <XAxis type="number" domain={[0, 100]} hide />
                     <YAxis 
                       dataKey="name" 
                       type="category" 
-                      width={140} 
-                      tick={{fontSize: 10, fill: '#f1f5f9', fontWeight: 600}} 
+                      width={120} 
+                      tick={{fontSize: 11, fill: '#cbd5e1', fontWeight: 700}} 
                       axisLine={false} 
                       tickLine={false}
                     />
                     <Tooltip 
-                      cursor={{fill: 'rgba(255,255,255,0.05)'}}
-                      contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #334155', borderRadius: '12px', fontSize: '12px' }} 
+                      cursor={{fill: 'rgba(255,255,255,0.03)'}}
+                      contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #334155', borderRadius: '12px', fontSize: '13px' }} 
                     />
-                    <Bar dataKey="score" radius={[0, 6, 6, 0]} barSize={26}>
+                    <Bar dataKey="score" radius={[0, 8, 8, 0]} barSize={28}>
                         {chartData.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={getBarColor(entry.score)} />
+                          <Cell key={'cell-' + index} fill={getBarColor(entry.score)} />
                         ))}
                         <LabelList 
                           dataKey="score" 
                           position="right" 
-                          formatter={(val: number) => `${val}%`} 
-                          style={{ fill: '#f1f5f9', fontSize: '11px', fontWeight: 'bold' }} 
-                          offset={10}
+                          formatter={(val: number) => val + "%"} 
+                          style={{ fill: '#ffffff', fontSize: '12px', fontWeight: '900' }} 
+                          offset={12}
                         />
                     </Bar>
                   </BarChart>
