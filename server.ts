@@ -75,29 +75,44 @@ async function startServer() {
     }
 
     try {
-      console.log(`Iniciando transporte SMTP hacia smtp.gmail.com:465 usando IPv4 Estricto`);
+      console.log('--- NUEVO INTENTO DE ENVÍO CON RESOLUCIÓN MANUAL IPv4 ---');
       
+      // Resolución manual para esquivar IPv6 en entornos problemáticos como Render
+      let resolvedHost = 'smtp.gmail.com';
+      try {
+        const lookup = await new Promise<{address: string}>((resolve, reject) => {
+          dns.lookup('smtp.gmail.com', { family: 4 }, (err, address) => {
+            if (err) reject(err);
+            else resolve({ address });
+          });
+        });
+        resolvedHost = lookup.address;
+        console.log(`Host smtp.gmail.com resuelto a IPv4: ${resolvedHost}`);
+      } catch (dnsErr) {
+        console.warn('Error en resolución manual de DNS, usando hostname directamente:', dnsErr);
+      }
+
       const transporter = nodemailer.createTransport({
-        host: 'smtp.gmail.com',
+        host: resolvedHost,
         port: 465,
         secure: true, // SSL/TLS
         auth: {
           user: SMTP_USER,
           pass: SMTP_PASS,
         },
-        // Configuración crítica para evitar ENETUNREACH en IPv6
+        // Configuración crítica
         family: 4, 
         tls: {
           rejectUnauthorized: false,
           minVersion: 'TLSv1.2',
-          servername: 'smtp.gmail.com' // Necesario si la IP se resuelve antes
+          servername: 'smtp.gmail.com' // Necesario para validar SSL contra la IP
         },
-        connectionTimeout: 30000,
+        connectionTimeout: 20000,
         greetingTimeout: 20000,
-        socketTimeout: 45000,
+        socketTimeout: 30000,
       });
 
-      console.log('Enviando correo directamente (bypass verify)...');
+      console.log('Iniciando envío de correo...');
 
       // Construir el cuerpo HTML con las imágenes embebidas
       let htmlBody = `<div style="font-family: Arial, sans-serif; color: #333; max-width: 800px; margin: 0 auto; background: #f8fafc; padding: 20px; border-radius: 12px;">
