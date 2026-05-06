@@ -69,30 +69,25 @@ async function startServer() {
     }
 
     try {
+      // Usar 'service: gmail' es más robusto para cuentas personales
       const transportOptions: any = {
-        host: SMTP_HOST,
-        port: parseInt(SMTP_PORT || '587'),
-        secure: SMTP_PORT === '465', // true para 465, false para otros
+        service: 'gmail',
         auth: {
           user: SMTP_USER,
           pass: SMTP_PASS,
         },
-        // Forzar el uso de IPv4 y configuraciones TLS más permisivas
+        // Forzar IPv4 para evitar errores de red en la nube (IPv6 ENETUNREACH)
         family: 4,
         tls: {
-          rejectUnauthorized: false, // Ignorar errores de certificado si los hay
+          rejectUnauthorized: false,
           minVersion: 'TLSv1.2'
-        },
-        // Tiempos de espera extendidos para conexiones en la nube
-        connectionTimeout: 30000,
-        greetingTimeout: 30000,
-        socketTimeout: 45000,
+        }
       };
 
-      console.log(`Configurando transporte SMTP hacia ${SMTP_HOST}:${SMTP_PORT} (TLS Flexible)`);
+      console.log(`Iniciando transporte con modo Gmail Service para: ${SMTP_USER}`);
       const transporter = nodemailer.createTransport(transportOptions);
 
-      console.log('Verificando conexión SMTP...');
+      console.log('Verificando conexión SMTP rápida...');
       await transporter.verify();
       console.log('Conexión SMTP verificada exitosamente');
 
