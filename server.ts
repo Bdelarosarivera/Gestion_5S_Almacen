@@ -72,20 +72,24 @@ async function startServer() {
       const transportOptions: any = {
         host: SMTP_HOST,
         port: parseInt(SMTP_PORT || '587'),
-        secure: SMTP_PORT === '465',
+        secure: SMTP_PORT === '465', // true para 465, false para otros
         auth: {
           user: SMTP_USER,
           pass: SMTP_PASS,
         },
-        // Forzar el uso de IPv4 (familia 4) para evitar ENETUNREACH en IPv6
+        // Forzar el uso de IPv4 y configuraciones TLS más permisivas
         family: 4,
-        // Aumentar el tiempo de espera para conexiones lentas
-        connectionTimeout: 15000,
-        greetingTimeout: 15000,
-        socketTimeout: 20000,
+        tls: {
+          rejectUnauthorized: false, // Ignorar errores de certificado si los hay
+          minVersion: 'TLSv1.2'
+        },
+        // Tiempos de espera extendidos para conexiones en la nube
+        connectionTimeout: 30000,
+        greetingTimeout: 30000,
+        socketTimeout: 45000,
       };
 
-      console.log(`Configurando transporte SMTP hacia ${SMTP_HOST}:${SMTP_PORT} (IPv4 forzado)`);
+      console.log(`Configurando transporte SMTP hacia ${SMTP_HOST}:${SMTP_PORT} (TLS Flexible)`);
       const transporter = nodemailer.createTransport(transportOptions);
 
       console.log('Verificando conexión SMTP...');
