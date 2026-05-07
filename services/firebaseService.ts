@@ -1,5 +1,14 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged, User } from 'firebase/auth';
+import { 
+  getAuth, 
+  GoogleAuthProvider, 
+  signInWithPopup, 
+  signInWithRedirect,
+  getRedirectResult,
+  signOut, 
+  onAuthStateChanged, 
+  User 
+} from 'firebase/auth';
 import { 
   getFirestore, 
   collection, 
@@ -21,12 +30,26 @@ export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
 
 const googleProvider = new GoogleAuthProvider();
 
-export const loginWithGoogle = async () => {
+export const loginWithGoogle = async (useRedirect = false) => {
   try {
-    const result = await signInWithPopup(auth, googleProvider);
-    return result.user;
+    if (useRedirect) {
+      await signInWithRedirect(auth, googleProvider);
+    } else {
+      const result = await signInWithPopup(auth, googleProvider);
+      return result.user;
+    }
   } catch (error) {
     console.error("Error logging in with Google:", error);
+    throw error;
+  }
+};
+
+export const handleRedirectResult = async () => {
+  try {
+    const result = await getRedirectResult(auth);
+    return result?.user || null;
+  } catch (error) {
+    console.error("Error handling redirect result:", error);
     throw error;
   }
 };
