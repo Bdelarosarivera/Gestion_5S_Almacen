@@ -72,43 +72,50 @@ async function startServer() {
     try {
       const targetHost = SMTP_HOST || 'smtp.gmail.com';
       const targetPort = parseInt(SMTP_PORT || '587');
-      const isSecure = targetPort === 465;
+      const isGmail = targetHost.includes('gmail.com');
 
-      console.log(`--- INTENTO DE ENVÍO DINÁMICO (HOST: ${targetHost}, PORT: ${targetPort}) ---`);
+      console.log(`--- INTENTO DE ENVÍO (HOST: ${targetHost}, PORT: ${targetPort}, GMAIL: ${isGmail}) ---`);
       
-      const transporter = nodemailer.createTransport({
+      let transporterConfig: any = {
         host: targetHost,
         port: targetPort,
-        secure: isSecure, 
+        secure: targetPort === 465,
         auth: {
           user: SMTP_USER,
           pass: SMTP_PASS,
-        },
-        pool: true,
-        maxConnections: 1,
-        maxMessages: 5,
-        family: 4, 
-        lookup: (hostname, options, callback) => {
-          dns.lookup(hostname, { family: 4 }, (err, address, family) => {
-            console.log(`DNS Lookup for ${hostname} resolved to ${address} (family: ${family})`);
-            callback(err, address, family);
-          });
         },
         tls: {
           rejectUnauthorized: false,
           minVersion: 'TLSv1.2'
         },
-        connectionTimeout: 15000,
-        greetingTimeout: 15000,
-        socketTimeout: 45000,
-      });
+        connectionTimeout: 20000,
+        greetingTimeout: 20000,
+        socketTimeout: 60000,
+      };
 
-      console.log(`Verificando conexión SMTP en ${targetHost}:${targetPort}...`);
+      // Si es Gmail, usar el preset de servicio que es más robusto
+      if (isGmail) {
+        console.log('Usando configuración optimizada para Gmail Service');
+        transporterConfig = {
+          service: 'gmail',
+          auth: {
+            user: SMTP_USER,
+            pass: SMTP_PASS,
+          },
+          tls: {
+            rejectUnauthorized: false
+          }
+        };
+      }
+
+      const transporter = nodemailer.createTransport(transporterConfig);
+
+      console.log(`Iniciando conexión SMTP...`);
 
       const transporterVerify = await new Promise((resolve) => {
         const timeout = setTimeout(() => {
-          resolve({ success: false, error: { message: 'Timeout en verificación (15s)' } });
-        }, 15000);
+          resolve({ success: false, error: { message: 'Timeout en verificación (30s) - El servidor SMTP no responde.' } });
+        }, 30000);
 
         transporter.verify((error, success) => {
           clearTimeout(timeout);
