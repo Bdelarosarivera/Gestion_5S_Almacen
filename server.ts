@@ -93,20 +93,33 @@ async function startServer() {
         socketTimeout: 60000,
       };
 
-      // Si es Gmail, usar el preset de servicio que es más robusto
+      // Si es Gmail, usar configuración manual optimizada para Render
       if (isGmail) {
-        console.log('Usando configuración optimizada para Gmail Service');
+        console.log('Usando configuración manual optimizada para Gmail');
+        
         transporterConfig = {
-          service: 'gmail',
+          host: 'smtp.gmail.com',
+          port: 587,
+          secure: false, // TLS/STARTTLS usa puerto 587 con secure: false
           auth: {
             user: SMTP_USER,
             pass: SMTP_PASS,
           },
           tls: {
-            rejectUnauthorized: false
-          }
+            rejectUnauthorized: false,
+            family: 4, // Forzar IPv4
+            minVersion: 'TLSv1.2'
+          },
+          connectionTimeout: 60000,
+          greetingTimeout: 60000,
+          socketTimeout: 60000,
+          dnsTimeout: 30000
         };
       }
+
+      console.log("SMTP_HOST:", transporterConfig.host);
+      console.log("SMTP_PORT:", transporterConfig.port);
+      console.log("SMTP_SECURE:", transporterConfig.secure);
 
       const transporter = nodemailer.createTransport(transporterConfig);
 
@@ -114,8 +127,8 @@ async function startServer() {
 
       const transporterVerify = await new Promise((resolve) => {
         const timeout = setTimeout(() => {
-          resolve({ success: false, error: { message: 'Timeout en verificación (30s) - El servidor SMTP no responde.' } });
-        }, 30000);
+          resolve({ success: false, error: { message: 'Timeout en verificación (60s) - El servidor SMTP no responde a tiempo en Render.' } });
+        }, 60000);
 
         transporter.verify((error, success) => {
           clearTimeout(timeout);
