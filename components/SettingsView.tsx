@@ -103,6 +103,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ config, onUpdateConf
         <h2 className="text-xl font-bold text-white uppercase tracking-tight">Configuración del Sistema</h2>
       </div>
 
+      <div className="px-6 py-3 bg-blue-500/10 border-b border-blue-500/20">
+        <p className="text-[10px] font-bold text-blue-400 uppercase tracking-widest text-center">
+          ⚠️ NOTA: Los cambios realizados aquí son GLOBALES y afectan a todos los usuarios.
+        </p>
+      </div>
+
       <div className="flex bg-[#0f172a]/50">
         <button 
           onClick={() => setActiveTab('areas')} 
