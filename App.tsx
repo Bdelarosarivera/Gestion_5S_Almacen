@@ -333,8 +333,14 @@ const App: React.FC = () => {
                 <p className="text-gray-400 text-sm text-center">Inicie sesión para sincronizar sus auditorías en la nube y acceder desde cualquier dispositivo.</p>
                 
                 {loginError && (
-                  <p className="text-red-400 text-[10px] font-bold text-center uppercase tracking-wider">{loginError}</p>
+                  <div className="bg-red-500/10 border border-red-500/20 p-3 rounded-xl">
+                    <p className="text-red-400 text-[10px] font-bold text-center uppercase tracking-wider leading-relaxed">{loginError}</p>
+                  </div>
                 )}
+
+                <p className="text-gray-500 text-[9px] text-center uppercase tracking-tight">
+                  Si tiene problemas, use el botón de abrir en nueva pestaña (arriba a la derecha ↗)
+                </p>
 
                 <button 
                   onClick={() => handleLogin(false)}
