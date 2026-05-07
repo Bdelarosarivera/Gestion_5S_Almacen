@@ -59,7 +59,7 @@ async function startServer() {
     const { to, subject, message, attachments, images } = req.body;
     
     // Verificar configuración SMTP
-    const { SMTP_USER, SMTP_PASS } = process.env;
+    const { SMTP_USER, SMTP_PASS, SMTP_HOST, SMTP_PORT } = process.env;
 
     if (!SMTP_USER || !SMTP_PASS) {
       console.error('Configuración SMTP incompleta');
@@ -70,13 +70,16 @@ async function startServer() {
     }
 
     try {
-      console.log('--- INTENTO DE ENVÍO RESILIENTE (PORT 465 SSL) ---');
+      const targetHost = SMTP_HOST || 'smtp.gmail.com';
+      const targetPort = parseInt(SMTP_PORT || '587');
+      const isSecure = targetPort === 465;
+
+      console.log(`--- INTENTO DE ENVÍO DINÁMICO (HOST: ${targetHost}, PORT: ${targetPort}) ---`);
       
-      // Intentamos usar el puerto 465 (SSL) que suele ser más exitoso en Render
       const transporter = nodemailer.createTransport({
-        host: 'smtp.gmail.com',
-        port: 465,
-        secure: true, 
+        host: targetHost,
+        port: targetPort,
+        secure: isSecure, 
         auth: {
           user: SMTP_USER,
           pass: SMTP_PASS,
@@ -84,18 +87,23 @@ async function startServer() {
         pool: true,
         maxConnections: 1,
         maxMessages: 5,
-        family: 4, // Fuerza IPv4 a nivel de conexión
+        family: 4, 
+        lookup: (hostname, options, callback) => {
+          dns.lookup(hostname, { family: 4 }, (err, address, family) => {
+            console.log(`DNS Lookup for ${hostname} resolved to ${address} (family: ${family})`);
+            callback(err, address, family);
+          });
+        },
         tls: {
           rejectUnauthorized: false,
           minVersion: 'TLSv1.2'
         },
-        connectionTimeout: 10000,
-        greetingTimeout: 10000,
-        socketTimeout: 30000,
+        connectionTimeout: 15000,
+        greetingTimeout: 15000,
+        socketTimeout: 45000,
       });
 
-      console.log(`Configurado para conectar a ${transporter.options.host}:${transporter.options.port} (SSL: ${transporter.options.secure})`);
-      console.log('Verificando conexión SMTP (IPv4 prioritario)...');
+      console.log(`Verificando conexión SMTP en ${targetHost}:${targetPort}...`);
 
       const transporterVerify = await new Promise((resolve) => {
         const timeout = setTimeout(() => {
