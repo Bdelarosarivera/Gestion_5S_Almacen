@@ -105,6 +105,9 @@ const App: React.FC = () => {
     const unsubscribeConfig = onSnapshot(configDocRef, (snapshot) => {
       if (snapshot.exists()) {
         setConfig(snapshot.data() as AppConfig);
+      } else {
+        // Si no existe la config global, la creamos con los valores por defecto
+        saveConfigToFirebase(DEFAULT_CONFIG);
       }
     }, (error) => {
       handleFirestoreError(error, OperationType.GET, 'config/global_config');
