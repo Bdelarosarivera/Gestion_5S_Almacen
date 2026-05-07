@@ -80,7 +80,7 @@ const App: React.FC = () => {
     setIsSyncing(true);
     
     // Listen to Audits
-    const qAudits = query(collection(db, 'audits'), where('userId', '==', user.uid));
+    const qAudits = query(collection(db, 'audits'));
     const unsubscribeAudits = onSnapshot(qAudits, (snapshot) => {
       const docs = snapshot.docs.map(d => d.data() as AuditRecord);
       setRecords(docs.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
@@ -92,7 +92,7 @@ const App: React.FC = () => {
     });
 
     // Listen to Actions
-    const qActions = query(collection(db, 'actions'), where('userId', '==', user.uid));
+    const qActions = query(collection(db, 'actions'));
     const unsubscribeActions = onSnapshot(qActions, (snapshot) => {
       const docs = snapshot.docs.map(d => d.data() as ActionItem);
       setActions(docs.sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
@@ -101,13 +101,13 @@ const App: React.FC = () => {
     });
 
     // Listen to Config
-    const configDocRef = doc(db, 'config', user.uid);
+    const configDocRef = doc(db, 'config', 'global_config');
     const unsubscribeConfig = onSnapshot(configDocRef, (snapshot) => {
       if (snapshot.exists()) {
         setConfig(snapshot.data() as AppConfig);
       }
     }, (error) => {
-      handleFirestoreError(error, OperationType.GET, `config/${user.uid}`);
+      handleFirestoreError(error, OperationType.GET, 'config/global_config');
     });
 
     return () => {
@@ -211,9 +211,9 @@ const App: React.FC = () => {
   const saveConfigToFirebase = async (newConfig: AppConfig) => {
     if (!user) return;
     try {
-      await setDoc(doc(db, 'config', user.uid), { ...newConfig, userId: user.uid });
+      await setDoc(doc(db, 'config', 'global_config'), { ...newConfig, userId: user.uid });
     } catch (error) {
-      handleFirestoreError(error, OperationType.WRITE, `config/${user.uid}`);
+      handleFirestoreError(error, OperationType.WRITE, 'config/global_config');
     }
   };
 
