@@ -57,21 +57,21 @@ service cloud.firestore {
 
     // Collection Rules
     match /audits/{auditId} {
-      allow read: if isOwner(existing());
+      allow read: if isSignedIn();
       allow create: if isSignedIn() && isValidId(auditId) && isValidAudit(incoming());
       allow update: if isOwner(existing()) && isValidAudit(incoming()) && incoming().userId == existing().userId;
       allow delete: if isOwner(existing());
     }
 
     match /actions/{actionId} {
-      allow read: if isOwner(existing());
+      allow read: if isSignedIn();
       allow create: if isSignedIn() && isValidId(actionId) && isValidAction(incoming());
       allow update: if isOwner(existing()) && isValidAction(incoming()) && incoming().userId == existing().userId;
       allow delete: if isOwner(existing());
     }
 
     match /config/{configId} {
-      allow read: if isOwner(existing());
+      allow read: if isSignedIn();
       allow create: if isSignedIn() && isValidId(configId) && isValidConfig(incoming());
       allow update: if isOwner(existing()) && isValidConfig(incoming()) && incoming().userId == existing().userId;
       allow delete: if isOwner(existing());
