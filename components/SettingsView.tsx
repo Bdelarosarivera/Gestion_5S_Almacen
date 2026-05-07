@@ -8,7 +8,15 @@ interface SettingsViewProps {
 }
 
 export const SettingsView: React.FC<SettingsViewProps> = ({ config, onUpdateConfig }) => {
-  const [activeTab, setActiveTab] = useState<'areas' | 'questions'>('areas');
+  const [activeTab, setActiveTab] = useState<'areas' | 'questions' | 'security'>('areas');
+  const [authToken, setAuthToken] = useState(localStorage.getItem('auth_token') || 'admin123');
+  const [showToken, setShowToken] = useState(false);
+  
+  const handleSaveToken = () => {
+    localStorage.setItem('auth_token', authToken);
+    alert("Token de seguridad actualizado correctamente.");
+  };
+
   const [newArea, setNewArea] = useState('');
   const [newResp, setNewResp] = useState('');
   const [newQuestion, setNewQuestion] = useState('');
@@ -121,6 +129,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ config, onUpdateConf
           className={`flex-1 py-4 text-xs font-bold transition-all tracking-widest ${activeTab === 'questions' ? 'text-blue-400 border-b-2 border-blue-500 bg-blue-500/10' : 'text-gray-500 hover:text-gray-300'}`}
         >
           PREGUNTAS DE AUDITORÍA
+        </button>
+        <button 
+          onClick={() => setActiveTab('security')} 
+          className={`flex-1 py-4 text-xs font-bold transition-all tracking-widest ${activeTab === 'security' ? 'text-blue-400 border-b-2 border-blue-500 bg-blue-500/10' : 'text-gray-500 hover:text-gray-300'}`}
+        >
+          SEGURIDAD Y CORREO
         </button>
       </div>
 
@@ -270,6 +284,57 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ config, onUpdateConf
                   </div>
                 );
               })}
+            </div>
+          </div>
+        )}
+        {activeTab === 'security' && (
+          <div className="space-y-6 animate-fade-in">
+            <div className="bg-[#0f172a] p-6 rounded-2xl border border-gray-700 space-y-4">
+              <div className="flex items-center gap-2 mb-2">
+                <Lock className="w-4 h-4 text-amber-500" />
+                <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest">Token de Acceso Administrativo</h3>
+              </div>
+              <p className="text-[11px] text-gray-500 leading-relaxed">
+                Este token se utiliza para autorizar el envío de correos electrónicos desde el servidor. Si no coincide con la contraseña configurada en el servidor (ADMIN_PASSWORD), las solicitudes de envío fallarán. El valor por defecto es <code className="bg-gray-800 px-1 rounded text-gray-300">admin123</code>.
+              </p>
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <input 
+                    type={showToken ? "text" : "password"} 
+                    value={authToken} 
+                    onChange={(e) => setAuthToken(e.target.value)}
+                    className="w-full bg-[#1e293b] border border-gray-700 rounded-xl p-3 text-sm text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                    placeholder="Ingrese su token administrativo"
+                  />
+                  <button 
+                    onClick={() => setShowToken(!showToken)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300"
+                  >
+                    {showToken ? <X className="w-4 h-4" /> : <Check className="w-4 h-4 opacity-0" /* placeholder for icon if needed */ />}
+                    <span className="text-[10px] font-bold uppercase">{showToken ? 'Ocultar' : 'Ver'}</span>
+                  </button>
+                </div>
+                <button 
+                  onClick={handleSaveToken}
+                  className="bg-blue-600 hover:bg-blue-700 text-white px-6 rounded-xl font-bold transition-all shadow-lg shadow-blue-500/20"
+                >
+                  Guardar en Navegador
+                </button>
+              </div>
+            </div>
+
+            <div className="bg-amber-600/10 border border-amber-500/20 p-5 rounded-2xl">
+              <div className="flex gap-3">
+                <HelpCircle className="w-5 h-5 text-amber-500 shrink-0" />
+                <div className="space-y-1">
+                  <p className="text-xs font-bold text-amber-100 uppercase tracking-tight">¿Problemas con el correo?</p>
+                  <p className="text-[11px] text-amber-200/70 leading-relaxed">
+                    1. Asegúrese de que el servidor tenga configurado <code className="text-amber-300">SMTP_USER</code> y <code className="text-amber-300">SMTP_PASS</code>.<br/>
+                    2. Para Gmail, debe usar una <strong>Contraseña de Aplicación</strong> si tiene 2FA.<br/>
+                    3. Hemos optimizado la conexión al puerto 587 para máxima compatibilidad.
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
         )}
