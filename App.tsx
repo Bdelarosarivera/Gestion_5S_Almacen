@@ -124,7 +124,14 @@ const App: React.FC = () => {
     try {
       await loginWithGoogle();
     } catch (error: any) {
-      setLoginError('Error al iniciar sesión con Google.');
+      console.error("Login detail:", error);
+      if (error.code === 'auth/unauthorized-domain') {
+        setLoginError('Error: Este dominio no está autorizado en Firebase. Añada su URL de Render a la consola de Firebase.');
+      } else if (error.code === 'auth/popup-closed-by-user') {
+        setLoginError('La ventana de inicio de sesión fue cerrada.');
+      } else {
+        setLoginError(`Error al iniciar sesión: ${error.message || 'Verifique su conexión'}`);
+      }
     } finally {
       setIsLoggingIn(false);
     }
