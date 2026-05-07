@@ -69,7 +69,7 @@ async function startServer() {
       
       try {
         const { data, error } = await resend.emails.send({
-          from: 'AuditCheck Pro <onboarding@resend.dev>', // Si tienes dominio propio en Resend, cámbialo aquí
+          from: 'AuditCheck Pro <onboarding@resend.dev>', 
           to: [to],
           subject: subject,
           html: generateHtmlBody(message),
@@ -90,14 +90,19 @@ async function startServer() {
         });
 
         if (error) {
-          console.error('Error en Resend:', error);
+          console.error('Error reportado por Resend API:', error);
           throw error;
         }
 
         console.log('Correo enviado exitosamente vía Resend API:', data);
-        return res.json({ success: true, via: 'resend', message: 'Correo enviado correctamente vía API (Resend)' });
+        return res.json({ 
+          success: true, 
+          via: 'resend', 
+          message: 'Reporte enviado con éxito vía Resend (Sin contraseñas SMTP)' 
+        });
       } catch (resendError: any) {
-        console.error('Fallo Resend, intentando fallback a SMTP si está disponible...');
+        console.error('Fallo Resend API:', resendError);
+        // Si falla Resend, solo continuamos a SMTP si el usuario explícitamente tiene credenciales
       }
     }
 
