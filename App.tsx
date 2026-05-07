@@ -26,7 +26,6 @@ import {
   auth, 
   db, 
   loginWithGoogle, 
-  handleRedirectResult,
   logout, 
   subscribeToAuth, 
   handleFirestoreError,
@@ -67,35 +66,10 @@ const App: React.FC = () => {
 
   // Sincronización en tiempo real con Firestore
   useEffect(() => {
-    let authChecked = false;
-    let redirectChecked = false;
-
-    const checkRedirect = async () => {
-      try {
-        const redirectedUser = await handleRedirectResult();
-        if (redirectedUser) {
-          setUser(redirectedUser);
-        }
-      } catch (error: any) {
-        console.error("Redirect error:", error);
-        setLoginError(`Error en el retorno: ${error.message}`);
-      } finally {
-        redirectChecked = true;
-        if (authChecked) setIsInitializing(false);
-      }
-    };
-
     const unsubscribeAuth = subscribeToAuth((currentUser) => {
       setUser(currentUser);
-      authChecked = true;
-      // Solo terminamos la inicialización si también chequeamos el redirect
-      // o si ya hay un usuario (lo que significa que el redirect funcionó)
-      if (redirectChecked || currentUser) {
-        setIsInitializing(false);
-      }
+      setIsInitializing(false);
     });
-
-    checkRedirect();
 
     return () => unsubscribeAuth();
   }, []);
@@ -143,17 +117,17 @@ const App: React.FC = () => {
     };
   }, [user]);
 
-  const handleLogin = async (useRedirect = false) => {
+  const handleLogin = async () => {
     setIsLoggingIn(true);
     setLoginError('');
     try {
-      await loginWithGoogle(useRedirect);
+      await loginWithGoogle();
     } catch (error: any) {
       console.error("Login detail:", error);
       if (error.code === 'auth/unauthorized-domain') {
         setLoginError('Error: Este dominio no está autorizado en Firebase. Añada su URL de Render a la consola de Firebase.');
       } else if (error.code === 'auth/popup-closed-by-user') {
-        setLoginError('La ventana de inicio de sesión fue cerrada. Intente con el botón de "Login Alternativo".');
+        setLoginError('La ventana de inicio de sesión fue cerrada.');
       } else {
         setLoginError(`Error al iniciar sesión: ${error.message || 'Verifique su conexión'}`);
       }
@@ -343,7 +317,7 @@ const App: React.FC = () => {
                 </p>
 
                 <button 
-                  onClick={() => handleLogin(false)}
+                  onClick={handleLogin}
                   disabled={isLoggingIn}
                   className="w-full bg-white text-gray-900 p-4 rounded-2xl font-black uppercase tracking-widest flex items-center justify-center gap-3 transition-all hover:bg-gray-100 disabled:opacity-50"
                 >
@@ -353,19 +327,6 @@ const App: React.FC = () => {
                     <LogIn className="w-5 h-5" />
                   )}
                   Google Login
-                </button>
-
-                <button 
-                  onClick={() => handleLogin(true)}
-                  disabled={isLoggingIn}
-                  className="w-full bg-blue-600/20 text-blue-400 p-4 rounded-2xl font-bold uppercase tracking-widest flex items-center justify-center gap-3 transition-all hover:bg-blue-600/30 border border-blue-500/30 disabled:opacity-50"
-                >
-                  {isLoggingIn ? (
-                    <Loader2 className="animate-spin w-5 h-5" />
-                  ) : (
-                    <LogIn className="w-5 h-5" />
-                  )}
-                  Login Alternativo
                 </button>
               </div>
             </div>
