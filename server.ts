@@ -88,10 +88,9 @@ async function startServer() {
           rejectUnauthorized: false,
           minVersion: 'TLSv1.2'
         },
-         connectionTimeout: 20000,
+        connectionTimeout: 20000,
         greetingTimeout: 20000,
         socketTimeout: 60000,
-        dnsTimeout: 30000,
       };
 
       // Si es Gmail, usar el preset de servicio que es más robusto
@@ -206,7 +205,7 @@ async function startServer() {
     const distPath = path.join(__dirname, 'dist');
     console.log(`Iniciando en modo Producción. Sirviendo archivos desde: ${distPath}`);
     app.use(express.static(distPath));
-    app.get('/*', (req, res) => {
+    app.get('*all', (req, res) => {
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }
