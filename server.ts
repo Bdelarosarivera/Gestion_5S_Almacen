@@ -70,13 +70,13 @@ async function startServer() {
     }
 
     try {
-      console.log('--- INTENTO DE ENVÍO RESILIENTE (RENDER OPTIMIZED) ---');
+      console.log('--- INTENTO DE ENVÍO RESILIENTE (PORT 465 SSL) ---');
       
-      // Intentamos usar el port 587 (TLS/STARTTLS) que es más compatible con nubes
+      // Intentamos usar el puerto 465 (SSL) que suele ser más exitoso en Render
       const transporter = nodemailer.createTransport({
         host: 'smtp.gmail.com',
-        port: 587,
-        secure: false, // true para 465, false para otros puertos
+        port: 465,
+        secure: true, 
         auth: {
           user: SMTP_USER,
           pass: SMTP_PASS,
@@ -84,21 +84,26 @@ async function startServer() {
         pool: true,
         maxConnections: 1,
         maxMessages: 5,
-        family: 4,
+        family: 4, // Fuerza IPv4 a nivel de conexión
         tls: {
           rejectUnauthorized: false,
           minVersion: 'TLSv1.2'
         },
-        connectionTimeout: 20000, // 20 segundos es suficiente
-        greetingTimeout: 20000,
-        socketTimeout: 60000,
+        connectionTimeout: 10000,
+        greetingTimeout: 10000,
+        socketTimeout: 30000,
       });
 
-      console.log('Iniciando envío de correo (Transporter configurado)...');
-      console.log(`Intentando conectar a ${transporter.options.host}:${transporter.options.port}...`);
+      console.log(`Configurado para conectar a ${transporter.options.host}:${transporter.options.port} (SSL: ${transporter.options.secure})`);
+      console.log('Verificando conexión SMTP (IPv4 prioritario)...');
 
       const transporterVerify = await new Promise((resolve) => {
+        const timeout = setTimeout(() => {
+          resolve({ success: false, error: { message: 'Timeout en verificación (15s)' } });
+        }, 15000);
+
         transporter.verify((error, success) => {
+          clearTimeout(timeout);
           if (error) {
             console.error('Error de verificación SMTP:', error);
             resolve({ success: false, error });
