@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { AppConfig } from '../types';
-import { Plus, Trash2, Edit2, Check, X, Settings as SettingsIcon, Users, MapPin, HelpCircle } from 'lucide-react';
+import { Plus, Trash2, Edit2, Check, X, Settings as SettingsIcon, Users, MapPin, HelpCircle, Lock, Eye, EyeOff } from 'lucide-react';
 
 interface SettingsViewProps {
   config: AppConfig;
@@ -288,51 +288,67 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ config, onUpdateConf
           </div>
         )}
         {activeTab === 'security' && (
-          <div className="space-y-6 animate-fade-in">
+          <div className="space-y-6">
             <div className="bg-[#0f172a] p-6 rounded-2xl border border-gray-700 space-y-4">
-              <div className="flex items-center gap-2 mb-2">
-                <Lock className="w-4 h-4 text-amber-500" />
-                <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest">Token de Acceso Administrativo</h3>
+              <div className="flex items-center gap-3 mb-2">
+                <div className="bg-amber-500/10 p-2 rounded-lg">
+                  <Lock className="w-5 h-5 text-amber-500" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-white uppercase tracking-tight">Seguridad del Sistema</h3>
+                  <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">Token de Acceso Administrativo</p>
+                </div>
               </div>
-              <p className="text-[11px] text-gray-500 leading-relaxed">
-                Este token se utiliza para autorizar el envío de correos electrónicos desde el servidor. Si no coincide con la contraseña configurada en el servidor (ADMIN_PASSWORD), las solicitudes de envío fallarán. El valor por defecto es <code className="bg-gray-800 px-1 rounded text-gray-300">admin123</code>.
-              </p>
-              <div className="flex gap-2">
-                <div className="relative flex-1">
+              
+              <div className="p-4 bg-blue-500/5 border border-blue-500/10 rounded-xl">
+                <p className="text-[11px] text-gray-400 leading-relaxed italic">
+                  Este token se utiliza para autorizar el envío de correos electrónicos. Debe coincidir con la variable <code className="text-blue-400 bg-blue-400/10 px-1 rounded">ADMIN_PASSWORD</code> configurada en su servidor (Render).
+                </p>
+              </div>
+
+              <div className="flex flex-col gap-3">
+                <div className="relative">
                   <input 
                     type={showToken ? "text" : "password"} 
                     value={authToken} 
                     onChange={(e) => setAuthToken(e.target.value)}
-                    className="w-full bg-[#1e293b] border border-gray-700 rounded-xl p-3 text-sm text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                    className="w-full bg-[#1e293b] border border-gray-700 rounded-xl p-4 text-sm text-white focus:ring-2 focus:ring-blue-500 outline-none pr-12 transition-all"
                     placeholder="Ingrese su token administrativo"
                   />
                   <button 
+                    type="button"
                     onClick={() => setShowToken(!showToken)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300"
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white transition-colors"
                   >
-                    {showToken ? <X className="w-4 h-4" /> : <Check className="w-4 h-4 opacity-0" /* placeholder for icon if needed */ />}
-                    <span className="text-[10px] font-bold uppercase">{showToken ? 'Ocultar' : 'Ver'}</span>
+                    {showToken ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                   </button>
                 </div>
                 <button 
                   onClick={handleSaveToken}
-                  className="bg-blue-600 hover:bg-blue-700 text-white px-6 rounded-xl font-bold transition-all shadow-lg shadow-blue-500/20"
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white py-4 rounded-xl font-bold transition-all shadow-lg shadow-blue-500/20 flex items-center justify-center gap-2"
                 >
-                  Guardar en Navegador
+                  <Check className="w-5 h-5" /> GUARDAR TOKEN EN NAVEGADOR
                 </button>
               </div>
             </div>
 
-            <div className="bg-amber-600/10 border border-amber-500/20 p-5 rounded-2xl">
-              <div className="flex gap-3">
-                <HelpCircle className="w-5 h-5 text-amber-500 shrink-0" />
-                <div className="space-y-1">
-                  <p className="text-xs font-bold text-amber-100 uppercase tracking-tight">¿Problemas con el correo?</p>
-                  <p className="text-[11px] text-amber-200/70 leading-relaxed">
-                    1. Asegúrese de que el servidor tenga configurado <code className="text-amber-300">SMTP_USER</code> y <code className="text-amber-300">SMTP_PASS</code>.<br/>
-                    2. Para Gmail, debe usar una <strong>Contraseña de Aplicación</strong> si tiene 2FA.<br/>
-                    3. Hemos optimizado la conexión al puerto 587 para máxima compatibilidad.
-                  </p>
+            <div className="bg-[#0f172a] p-6 rounded-2xl border border-gray-700 space-y-4">
+              <div className="flex items-center gap-2 text-amber-500">
+                <HelpCircle className="w-5 h-5" />
+                <h4 className="text-xs font-bold uppercase tracking-widest">Guía de Solución de Problemas (Correo)</h4>
+              </div>
+              <div className="space-y-3">
+                <div className="flex gap-3 text-[11px] text-gray-400">
+                  <div className="bg-gray-800 h-5 w-5 rounded-full flex items-center justify-center shrink-0 text-white font-bold">1</div>
+                  <p>Asegúrese de que en Render el <code className="text-amber-500">SMTP_PORT</code> sea 465 o 587.</p>
+                </div>
+                <div className="flex gap-3 text-[11px] text-gray-400">
+                  <div className="bg-gray-800 h-5 w-5 rounded-full flex items-center justify-center shrink-0 text-white font-bold">2</div>
+                  <p>Si usa Gmail, active la <strong>Verificación en 2 pasos</strong> y genere una <strong>Contraseña de Aplicación</strong>.</p>
+                </div>
+                <div className="flex gap-3 text-[11px] text-gray-400">
+                  <div className="bg-gray-800 h-5 w-5 rounded-full flex items-center justify-center shrink-0 text-white font-bold">3</div>
+                  <p>Si ve el error <code className="text-red-400">ENETUNREACH</code>, el servidor está intentando usar IPv6. El sistema está configurado para forzar IPv4 automáticamente.</p>
                 </div>
               </div>
             </div>
