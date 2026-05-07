@@ -88,8 +88,8 @@ async function startServer() {
           rejectUnauthorized: false,
           minVersion: 'TLSv1.2'
         },
-        connectionTimeout: 60000,
-        greetingTimeout: 60000,
+         connectionTimeout: 20000,
+        greetingTimeout: 20000,
         socketTimeout: 60000,
         dnsTimeout: 30000,
       };
