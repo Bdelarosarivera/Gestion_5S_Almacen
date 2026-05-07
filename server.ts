@@ -1,6 +1,7 @@
 import express from 'express';
 import { createServer as createViteServer } from 'vite';
 import nodemailer from 'nodemailer';
+import { Resend } from 'resend';
 import dns from 'dns';
 import path from 'path';
 import fs from 'fs/promises';
@@ -58,14 +59,54 @@ async function startServer() {
     console.log('Solicitud de envío de reporte recibida');
     const { to, subject, message, attachments, images } = req.body;
     
-    // Verificar configuración SMTP
-    const { SMTP_USER, SMTP_PASS, SMTP_HOST, SMTP_PORT } = process.env;
+    // --- NUEVA LÓGICA HIBRIDAS ---
+    const { RESEND_API_KEY, SMTP_USER, SMTP_PASS, SMTP_HOST, SMTP_PORT } = process.env;
 
+    // Prioridad 1: RESEND API (Solución definitiva para Render)
+    if (RESEND_API_KEY) {
+      console.log('--- INTENTO DE ENVÍO VÍA RESEND API (Prioridad 1) ---');
+      const resend = new Resend(RESEND_API_KEY);
+      
+      try {
+        const { data, error } = await resend.emails.send({
+          from: 'AuditCheck Pro <onboarding@resend.dev>', // Si tienes dominio propio en Resend, cámbialo aquí
+          to: [to],
+          subject: subject,
+          html: generateHtmlBody(message),
+          attachments: [
+            {
+              filename: attachments[0].filename,
+              content: Buffer.from(attachments[0].content, 'base64'),
+            },
+            {
+              filename: 'dashboard_capture.jpg',
+              content: Buffer.from(images.chart.includes(',') ? images.chart.split(',')[1] : images.chart, 'base64'),
+            },
+            {
+              filename: 'performance_summary.jpg',
+              content: Buffer.from(images.consolidated.includes(',') ? images.consolidated.split(',')[1] : images.consolidated, 'base64'),
+            }
+          ]
+        });
+
+        if (error) {
+          console.error('Error en Resend:', error);
+          throw error;
+        }
+
+        console.log('Correo enviado exitosamente vía Resend API:', data);
+        return res.json({ success: true, via: 'resend', message: 'Correo enviado correctamente vía API (Resend)' });
+      } catch (resendError: any) {
+        console.error('Fallo Resend, intentando fallback a SMTP si está disponible...');
+      }
+    }
+
+    // Prioridad 2: SMTP MANUAL (Fallback o si no hay Resend)
     if (!SMTP_USER || !SMTP_PASS) {
-      console.error('Configuración SMTP incompleta');
+      console.error('Configuración de correo incompleta (No hay RESEND_API_KEY ni credenciales SMTP)');
       return res.status(500).json({ 
-        error: 'Configuración SMTP incompleta',
-        details: 'Faltan credenciales del correo (SMTP_USER/PASS).' 
+        error: 'Configuración incompleta',
+        details: 'Configure RESEND_API_KEY en Render para una solución 100% fiable, o proporcione credenciales SMTP válidas.' 
       });
     }
 
@@ -74,7 +115,7 @@ async function startServer() {
       const targetPort = parseInt(SMTP_PORT || '587');
       const isGmail = targetHost.includes('gmail.com');
 
-      console.log(`--- INTENTO DE ENVÍO (HOST: ${targetHost}, PORT: ${targetPort}, GMAIL: ${isGmail}) ---`);
+      console.log(`--- INTENTO DE ENVÍO SMTP (HOST: ${targetHost}, PORT: ${targetPort}) ---`);
       
       let transporterConfig: any = {
         host: targetHost,
@@ -148,8 +189,42 @@ async function startServer() {
         throw new Error(`Fallo en la verificación SMTP: ${(transporterVerify as any).error.message}`);
       }
 
-      // Construir el cuerpo HTML con las imágenes embebidas
-      let htmlBody = `<div style="font-family: Arial, sans-serif; color: #333; max-width: 800px; margin: 0 auto; background: #f8fafc; padding: 20px; border-radius: 12px;">
+      const mailOptions = {
+        from: SMTP_USER,
+        to,
+        subject,
+        html: generateHtmlBody(message),
+        attachments: [
+          // Excel adjunto
+          {
+            filename: attachments[0].filename,
+            content: Buffer.from(attachments[0].content, 'base64'),
+          },
+          // Imágenes incrustadas (CID)
+          {
+            filename: 'dashboard_capture.jpg',
+            content: Buffer.from(images.chart.includes(',') ? images.chart.split(',')[1] : images.chart, 'base64'),
+            cid: 'dashboard_image'
+          },
+          {
+            filename: 'performance_summary.jpg',
+            content: Buffer.from(images.consolidated.includes(',') ? images.consolidated.split(',')[1] : images.consolidated, 'base64'),
+            cid: 'performance_image'
+          }
+        ],
+      };
+
+      await transporter.sendMail(mailOptions);
+      res.json({ success: true, via: 'smtp', message: 'Correo enviado correctamente vía SMTP' });
+    } catch (error: any) {
+      console.error('Error al enviar correo:', error);
+      res.status(500).json({ error: 'Error al enviar el correo', details: error.message });
+    }
+  });
+
+  // Función auxiliar para generar el HTML
+  function generateHtmlBody(message: string) {
+    return `<div style="font-family: Arial, sans-serif; color: #333; max-width: 800px; margin: 0 auto; background: #f8fafc; padding: 20px; border-radius: 12px;">
         <h2 style="color: #1e293b; border-bottom: 2px solid #3b82f6; padding-bottom: 10px;">Reporte de Auditoría 5S</h2>
         <p style="font-size: 16px; line-height: 1.5;">${message.replace(/\n/g, '<br>')}</p>
         
@@ -172,39 +247,7 @@ async function startServer() {
           <p>Los archivos detallados se encuentran adjuntos en formato Excel.</p>
         </div>
       </div>`;
-
-      const mailOptions = {
-        from: SMTP_USER,
-        to,
-        subject,
-        html: htmlBody,
-        attachments: [
-          // Excel adjunto
-          {
-            filename: attachments[0].filename,
-            content: Buffer.from(attachments[0].content, 'base64'),
-          },
-          // Imágenes incrustadas (CID)
-          {
-            filename: 'dashboard_capture.jpg',
-            content: Buffer.from(images.chart.includes(',') ? images.chart.split(',')[1] : images.chart, 'base64'),
-            cid: 'dashboard_image'
-          },
-          {
-            filename: 'performance_summary.jpg',
-            content: Buffer.from(images.consolidated.includes(',') ? images.consolidated.split(',')[1] : images.consolidated, 'base64'),
-            cid: 'performance_image'
-          }
-        ],
-      };
-
-      await transporter.sendMail(mailOptions);
-      res.json({ success: true, message: 'Correo enviado correctamente' });
-    } catch (error: any) {
-      console.error('Error al enviar correo:', error);
-      res.status(500).json({ error: 'Error al enviar el correo', details: error.message });
-    }
-  });
+  }
 
   // Integración con Vite
   console.log(`Verificando modo de ejecución... NODE_ENV: ${process.env.NODE_ENV}`);
