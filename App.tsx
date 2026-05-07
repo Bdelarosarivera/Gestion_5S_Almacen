@@ -67,6 +67,9 @@ const App: React.FC = () => {
 
   // Sincronización en tiempo real con Firestore
   useEffect(() => {
+    let authChecked = false;
+    let redirectChecked = false;
+
     const checkRedirect = async () => {
       try {
         const redirectedUser = await handleRedirectResult();
@@ -74,17 +77,26 @@ const App: React.FC = () => {
           setUser(redirectedUser);
         }
       } catch (error: any) {
+        console.error("Redirect error:", error);
         setLoginError(`Error en el retorno: ${error.message}`);
+      } finally {
+        redirectChecked = true;
+        if (authChecked) setIsInitializing(false);
       }
     };
-    checkRedirect();
 
     const unsubscribeAuth = subscribeToAuth((currentUser) => {
       setUser(currentUser);
-      if (!currentUser) {
+      authChecked = true;
+      // Solo terminamos la inicialización si también chequeamos el redirect
+      // o si ya hay un usuario (lo que significa que el redirect funcionó)
+      if (redirectChecked || currentUser) {
         setIsInitializing(false);
       }
     });
+
+    checkRedirect();
+
     return () => unsubscribeAuth();
   }, []);
 
@@ -292,7 +304,7 @@ const App: React.FC = () => {
     return (
       <div className="min-h-screen bg-[#0f172a] flex flex-col items-center justify-center gap-4">
         <Loader2 className="w-12 h-12 text-blue-500 animate-spin" />
-        <p className="text-blue-500 font-black tracking-widest text-xs uppercase">Iniciando Aplicación...</p>
+        <p className="text-blue-500 font-black tracking-widest text-[10px] uppercase">Verificando Sesión de Google...</p>
       </div>
     );
   }
