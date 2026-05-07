@@ -205,7 +205,7 @@ async function startServer() {
     const distPath = path.join(__dirname, 'dist');
     console.log(`Iniciando en modo Producción. Sirviendo archivos desde: ${distPath}`);
     app.use(express.static(distPath));
-    app.get('*all', (req, res) => {
+    app.get('/*', (req, res) => {
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }
