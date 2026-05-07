@@ -66,6 +66,12 @@ const App: React.FC = () => {
 
   // Sincronización en tiempo real con Firestore
   useEffect(() => {
+    // Asegurar que exista un token de autorización para las peticiones API (envío de correos)
+    // El valor por defecto es 'admin123'
+    if (!localStorage.getItem('auth_token')) {
+      localStorage.setItem('auth_token', 'admin123');
+    }
+
     const unsubscribeAuth = subscribeToAuth((currentUser) => {
       setUser(currentUser);
       setIsInitializing(false);
