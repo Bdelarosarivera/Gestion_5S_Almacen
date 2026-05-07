@@ -69,7 +69,7 @@ export const History: React.FC<HistoryProps> = ({ records, actions, onEdit, onDe
       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 bg-[#1e293b] p-6 rounded-3xl shadow-xl border border-gray-700">
         <div className="space-y-1">
           <h2 className="text-3xl font-black text-gray-100 tracking-tighter">Historial de Auditorías</h2>
-          <p className="text-sm text-gray-400">Control maestro de registros almacenados localmente.</p>
+          <p className="text-sm text-gray-400">Control maestro de registros almacenados en la nube.</p>
         </div>
         <div className="flex flex-wrap gap-3 w-full lg:w-auto">
           {onClearHistory && records.length > 0 && (
