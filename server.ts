@@ -72,30 +72,46 @@ async function startServer() {
     try {
       console.log('--- INTENTO DE ENVÍO RESILIENTE (RENDER OPTIMIZED) ---');
       
-      // Intentamos usar el pool para mejorar la persistencia de la conexión
+      // Intentamos usar el port 587 (TLS/STARTTLS) que es más compatible con nubes
       const transporter = nodemailer.createTransport({
         host: 'smtp.gmail.com',
-        port: 465,
-        secure: true,
+        port: 587,
+        secure: false, // true para 465, false para otros puertos
         auth: {
           user: SMTP_USER,
           pass: SMTP_PASS,
         },
-        pool: true, // Usar un pool de conexiones
-        maxConnections: 1, // Limitar para evitar saturación en la nube
-        maxMessages: 1,
-        family: 4, // Forzar IPv4
+        pool: true,
+        maxConnections: 1,
+        maxMessages: 5,
+        family: 4,
         tls: {
           rejectUnauthorized: false,
-          minVersion: 'TLSv1.2',
-          servername: 'smtp.gmail.com'
+          minVersion: 'TLSv1.2'
         },
-        connectionTimeout: 60000, // 60 segundos
-        greetingTimeout: 60000,
-        socketTimeout: 120000, // 2 minutos para el envío de datos
+        connectionTimeout: 20000, // 20 segundos es suficiente
+        greetingTimeout: 20000,
+        socketTimeout: 60000,
       });
 
       console.log('Iniciando envío de correo (Transporter configurado)...');
+      console.log(`Intentando conectar a ${transporter.options.host}:${transporter.options.port}...`);
+
+      const transporterVerify = await new Promise((resolve) => {
+        transporter.verify((error, success) => {
+          if (error) {
+            console.error('Error de verificación SMTP:', error);
+            resolve({ success: false, error });
+          } else {
+            console.log('Servidor SMTP listo para enviar');
+            resolve({ success: true });
+          }
+        });
+      });
+
+      if (!(transporterVerify as any).success) {
+        throw new Error(`Fallo en la verificación SMTP: ${(transporterVerify as any).error.message}`);
+      }
 
       // Construir el cuerpo HTML con las imágenes embebidas
       let htmlBody = `<div style="font-family: Arial, sans-serif; color: #333; max-width: 800px; margin: 0 auto; background: #f8fafc; padding: 20px; border-radius: 12px;">
