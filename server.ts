@@ -27,9 +27,10 @@ async function startServer() {
     await fs.writeFile(DATA_FILE, JSON.stringify({ records: [], actions: [], config: null }));
   }
 
-  // Seguridad: Configurar cabeceras de seguridad
+  // Seguridad: Configurar cabeceras de seguridad (Optimizado para Firebase Auth)
   app.use(helmet({
     contentSecurityPolicy: false, // Permitir assets de Vite
+    crossOriginOpenerPolicy: { policy: "same-origin-allow-popups" }, // PERMITIR POPUPS DE AUTH
   }));
 
   // Aumentar el límite para recibir imágenes base64 grandes
