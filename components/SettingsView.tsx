@@ -339,8 +339,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ config, onUpdateConf
               </div>
               <div className="space-y-3">
                 <div className="flex gap-3 text-[11px] text-gray-400">
+                  <div className="bg-blue-500 h-5 w-5 rounded-full flex items-center justify-center shrink-0 text-white font-bold">★</div>
+                  <p className="text-blue-400 font-bold">RECOMENDADO: Use <a href="https://resend.com" target="_blank" rel="noreferrer" className="underline">Resend</a> (Gratis). Solo cree una API Key y añada <code className="text-white bg-blue-600 px-1 rounded">RESEND_API_KEY</code> a Render. ¡Bypassea todos los problemas de SMTP!</p>
+                </div>
+                <div className="flex gap-3 text-[11px] text-gray-400">
                   <div className="bg-gray-800 h-5 w-5 rounded-full flex items-center justify-center shrink-0 text-white font-bold">1</div>
-                  <p>Asegúrese de que en Render el <code className="text-amber-500">SMTP_PORT</code> sea 465 o 587.</p>
+                  <p>Si usa Gmail, asegúrese de que en Render el <code className="text-amber-500">SMTP_PORT</code> sea 587.</p>
                 </div>
                 <div className="flex gap-3 text-[11px] text-gray-400">
                   <div className="bg-gray-800 h-5 w-5 rounded-full flex items-center justify-center shrink-0 text-white font-bold">2</div>
