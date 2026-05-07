@@ -101,15 +101,17 @@ async function startServer() {
           host: 'smtp.gmail.com',
           port: 587,
           secure: false, // TLS/STARTTLS usa puerto 587 con secure: false
+          family: 4, // Forzar IPv4 al nivel de conexión
           auth: {
             user: SMTP_USER,
             pass: SMTP_PASS,
           },
           tls: {
             rejectUnauthorized: false,
-            family: 4, // Forzar IPv4
             minVersion: 'TLSv1.2'
           },
+          debug: true, // Mostrar logs de protocolo SMTP
+          logger: true, // Habilitar logger interno
           connectionTimeout: 60000,
           greetingTimeout: 60000,
           socketTimeout: 60000,
