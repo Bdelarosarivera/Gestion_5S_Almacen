@@ -7,7 +7,10 @@ import fs from 'fs/promises';
 import { fileURLToPath } from 'url';
 import helmet from 'helmet';
 
-// SOLUCIÓN DEFINITIVA PARA ENETUNREACH: Forzar IPv4 globalmente
+// ======================================================
+// FORZAR IPV4
+// ======================================================
+
 if (dns && (dns as any).setDefaultResultOrder) {
   (dns as any).setDefaultResultOrder('ipv4first');
 }
@@ -15,39 +18,56 @@ if (dns && (dns as any).setDefaultResultOrder) {
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DATA_FILE = path.join(__dirname, 'data.json');
 
+// ======================================================
+// START SERVER
+// ======================================================
+
 async function startServer() {
   const app = express();
   const PORT = process.env.PORT || 3000;
 
-  // Inicializar archivo de datos si no existe
+  // ======================================================
+  // CREAR DATA.JSON SI NO EXISTE
+  // ======================================================
+
   try {
     await fs.access(DATA_FILE);
   } catch {
-    console.log('Creando archivo de datos inicial...');
+    console.log('Creando archivo data.json...');
+
     await fs.writeFile(
       DATA_FILE,
       JSON.stringify({
         records: [],
         actions: [],
-        config: null
+        config: null,
       })
     );
   }
 
-  // Seguridad
+  // ======================================================
+  // HELMET
+  // ======================================================
+
   app.use(
     helmet({
       contentSecurityPolicy: false,
       crossOriginOpenerPolicy: {
-        policy: 'same-origin-allow-popups'
-      }
+        policy: 'same-origin-allow-popups',
+      },
     })
   );
 
-  // Permitir payloads grandes
+  // ======================================================
+  // JSON LIMIT
+  // ======================================================
+
   app.use(express.json({ limit: '50mb' }));
 
-  // Middleware Auth
+  // ======================================================
+  // AUTH SIMPLE
+  // ======================================================
+
   const verifyAuth = (req: any, res: any, next: any) => {
     const authHeader = req.headers.authorization;
     const ADMIN_PASS = process.env.ADMIN_PASSWORD || 'admin123';
@@ -56,35 +76,32 @@ async function startServer() {
       next();
     } else {
       res.status(401).json({
-        error: 'No autorizado'
+        error: 'No autorizado',
       });
     }
   };
 
-  // =========================================================
-  // API ENVÍO DE REPORTES
-  // =========================================================
+  // ======================================================
+  // API SEND REPORT
+  // ======================================================
+
   app.post('/api/send-report', verifyAuth, async (req, res) => {
-    console.log('=========================================');
-    console.log('Solicitud de envío de reporte recibida');
-    console.log('=========================================');
+    console.log('======================================');
+    console.log('SOLICITUD DE ENVÍO RECIBIDA');
+    console.log('======================================');
 
     const { to, subject, message, attachments, images } = req.body;
 
-    const {
-      SMTP_USER,
-      SMTP_PASS,
-      SMTP_HOST,
-      SMTP_PORT
-    } = process.env;
+    const { SMTP_USER, SMTP_PASS, SMTP_HOST, SMTP_PORT } = process.env;
 
-    // Validar variables SMTP
+    // ======================================================
+    // VALIDAR SMTP
+    // ======================================================
+
     if (!SMTP_USER || !SMTP_PASS) {
-      console.error('Faltan variables SMTP');
-
       return res.status(500).json({
         error: 'Configuración SMTP incompleta',
-        details: 'Faltan SMTP_USER o SMTP_PASS'
+        details: 'Faltan SMTP_USER o SMTP_PASS',
       });
     }
 
@@ -92,48 +109,48 @@ async function startServer() {
       const targetHost = SMTP_HOST || 'smtp.gmail.com';
       const targetPort = parseInt(SMTP_PORT || '587');
 
-      console.log('Configuración SMTP detectada:');
+      console.log('======================================');
+      console.log('CONFIG SMTP');
+      console.log('======================================');
       console.log('HOST:', targetHost);
       console.log('PORT:', targetPort);
       console.log('USER:', SMTP_USER);
+      console.log('======================================');
 
-      // =========================================================
-      // CONFIGURACIÓN SMTP OPTIMIZADA PARA RENDER + GMAIL
-      // =========================================================
-      const transporterConfig: any = {
-        host: 'smtp.gmail.com',
+      // ======================================================
+      // SMTP CONFIG
+      // ======================================================
 
-        port: 587,
+      const transporter = nodemailer.createTransport({
+        host: targetHost,
+        port: targetPort,
 
-        secure: false,
+        secure: targetPort === 465,
 
         auth: {
           user: SMTP_USER,
-          pass: SMTP_PASS
+          pass: SMTP_PASS,
         },
 
         tls: {
           rejectUnauthorized: false,
           family: 4,
-          minVersion: 'TLSv1.2'
+          minVersion: 'TLSv1.2',
         },
 
         connectionTimeout: 60000,
         greetingTimeout: 60000,
         socketTimeout: 60000,
+        dnsTimeout: 30000,
+      });
 
-        dnsTimeout: 30000
-      };
+      // ======================================================
+      // VERIFY SMTP
+      // ======================================================
 
-      console.log('Creando transporter SMTP...');
-      console.log('SMTP_SECURE:', transporterConfig.secure);
-
-      const transporter = nodemailer.createTransport(transporterConfig);
-
-      // =========================================================
-      // VERIFICAR SMTP
-      // =========================================================
-      console.log('Verificando conexión SMTP...');
+      console.log('======================================');
+      console.log('VERIFICANDO SMTP...');
+      console.log('======================================');
 
       const transporterVerify = await new Promise((resolve) => {
         const timeout = setTimeout(() => {
@@ -141,8 +158,8 @@ async function startServer() {
             success: false,
             error: {
               message:
-                'Timeout en verificación SMTP (60s)'
-            }
+                'Timeout en verificación SMTP (60s)',
+            },
           });
         }, 60000);
 
@@ -150,18 +167,18 @@ async function startServer() {
           clearTimeout(timeout);
 
           if (error) {
-            console.error('Error SMTP VERIFY:');
+            console.error('ERROR SMTP VERIFY');
             console.error(error);
 
             resolve({
               success: false,
-              error
+              error,
             });
           } else {
-            console.log('Servidor SMTP listo');
+            console.log('SMTP VERIFICADO');
 
             resolve({
-              success: true
+              success: true,
             });
           }
         });
@@ -169,15 +186,16 @@ async function startServer() {
 
       if (!(transporterVerify as any).success) {
         throw new Error(
-          `Fallo en la verificación SMTP: ${
+          `Fallo SMTP: ${
             (transporterVerify as any).error.message
           }`
         );
       }
 
-      // =========================================================
-      // CONSTRUIR HTML
-      // =========================================================
+      // ======================================================
+      // HTML
+      // ======================================================
+
       const htmlBody = `
       <div style="
         font-family: Arial, sans-serif;
@@ -188,7 +206,7 @@ async function startServer() {
         padding: 20px;
         border-radius: 12px;
       ">
-      
+
         <h2 style="
           color: #1e293b;
           border-bottom: 2px solid #3b82f6;
@@ -210,7 +228,7 @@ async function startServer() {
             font-size: 18px;
             margin-bottom: 15px;
           ">
-            Captura del Dashboard General
+            Captura Dashboard
           </h3>
 
           <div style="
@@ -236,7 +254,7 @@ async function startServer() {
             font-size: 18px;
             margin-bottom: 15px;
           ">
-            Resumen de Desempeño por Áreas (Top 5)
+            Resumen Áreas
           </h3>
 
           <div style="
@@ -265,102 +283,96 @@ async function startServer() {
           text-align: center;
         ">
           <p>
-            Este es un correo automático generado por
-            <strong>AuditCheck Pro AI Engine</strong>.
+            Correo automático generado por
+            <strong>AuditCheck Pro AI Engine</strong>
           </p>
 
           <p>
-            Los archivos detallados se encuentran adjuntos
-            en formato Excel.
+            Archivo Excel incluido.
           </p>
         </div>
       </div>
       `;
 
-      // =========================================================
-      // ADJUNTOS
-      // =========================================================
+      // ======================================================
+      // MAIL OPTIONS
+      // ======================================================
+
       const mailOptions = {
         from: SMTP_USER,
-
         to,
-
         subject,
-
         html: htmlBody,
 
         attachments: [
-          // Excel
           {
             filename: attachments[0].filename,
-
             content: Buffer.from(
               attachments[0].content,
               'base64'
-            )
+            ),
           },
 
-          // Dashboard
           {
             filename: 'dashboard_capture.jpg',
-
             content: Buffer.from(
               images.chart.includes(',')
                 ? images.chart.split(',')[1]
                 : images.chart,
               'base64'
             ),
-
-            cid: 'dashboard_image'
+            cid: 'dashboard_image',
           },
 
-          // Consolidado
           {
             filename: 'performance_summary.jpg',
-
             content: Buffer.from(
               images.consolidated.includes(',')
                 ? images.consolidated.split(',')[1]
                 : images.consolidated,
               'base64'
             ),
-
-            cid: 'performance_image'
-          }
-        ]
+            cid: 'performance_image',
+          },
+        ],
       };
 
-      // =========================================================
-      // ENVIAR CORREO
-      // =========================================================
-      console.log('Enviando correo...');
+      // ======================================================
+      // SEND EMAIL
+      // ======================================================
+
+      console.log('======================================');
+      console.log('ENVIANDO CORREO...');
+      console.log('======================================');
 
       const info = await transporter.sendMail(mailOptions);
 
-      console.log('Correo enviado correctamente');
-      console.log(info);
+      console.log('======================================');
+      console.log('CORREO ENVIADO');
+      console.log(info.response);
+      console.log('======================================');
 
       res.json({
         success: true,
-        message: 'Correo enviado correctamente'
+        message: 'Correo enviado correctamente',
       });
-
     } catch (error: any) {
-      console.error('=========================================');
-      console.error('ERROR AL ENVIAR CORREO');
-      console.error('=========================================');
+      console.error('======================================');
+      console.error('ERROR GENERAL');
+      console.error('======================================');
       console.error(error);
 
       res.status(500).json({
-        error: 'Error al enviar el correo',
-        details: error.message
+        error: 'Error al enviar correo',
+        details: error.message,
       });
     }
   });
 
-  // =========================================================
+  // ======================================================
   // VITE
-  // =========================================================
+  // ======================================================
+
   console.log(
     `Verificando entorno NODE_ENV: ${process.env.NODE_ENV}`
   );
@@ -370,45 +382,49 @@ async function startServer() {
 
     const vite = await createViteServer({
       server: {
-        middlewareMode: true
+        middlewareMode: true,
       },
-
-      appType: 'spa'
+      appType: 'spa',
     });
 
     app.use(vite.middlewares);
-
   } else {
     const distPath = path.join(__dirname, 'dist');
 
-    console.log(
-      `Modo producción. Dist: ${distPath}`
-    );
+    console.log(`Modo producción. Dist: ${distPath}`);
 
     app.use(express.static(distPath));
 
-    app.get('*', (req, res) => {
-      res.sendFile(
-        path.join(distPath, 'index.html')
-      );
+    // ======================================================
+    // FIX EXPRESS 5
+    // ======================================================
+
+    app.get('/*', (req, res) => {
+      res.sendFile(path.join(distPath, 'index.html'));
     });
   }
 
-  // =========================================================
-  // START SERVER
-  // =========================================================
+  // ======================================================
+  // LISTEN
+  // ======================================================
+
   app.listen(PORT, '0.0.0.0', () => {
-    console.log('=========================================');
-    console.log(`Servidor iniciado en puerto ${PORT}`);
-    console.log(`NODE_ENV: ${process.env.NODE_ENV}`);
-    console.log('=========================================');
+    console.log('======================================');
+    console.log(`Servidor activo en puerto ${PORT}`);
+    console.log(`http://0.0.0.0:${PORT}`);
+    console.log('======================================');
   });
 }
+
+// ======================================================
+// START
+// ======================================================
 
 console.log('Iniciando servidor...');
 
 startServer().catch((err) => {
   console.error('ERROR FATAL');
   console.error(err);
+
   process.exit(1);
 });
