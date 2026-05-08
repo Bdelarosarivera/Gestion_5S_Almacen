@@ -248,14 +248,80 @@ const App: React.FC = () => {
     saveConfigToFirebase(newConfig);
   }, [user]);
 
-  const handleClearActions = useCallback(() => {
-    setActions([]);
-  }, []);
+  const handleClearActions = useCallback(async () => {
+    if (!user) return;
+    setIsSyncing(true);
+    try {
+      const batch = writeBatch(db);
+      actions.forEach(action => {
+        batch.delete(doc(db, 'actions', action.id));
+      });
+      await batch.commit();
+      setActions([]);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, 'actions/all');
+    } finally {
+      setIsSyncing(false);
+    }
+  }, [user, actions]);
 
-  const handleClearHistory = useCallback(() => {
-    setRecords([]);
-    setActions([]);
-  }, []);
+  const handleClearHistory = useCallback(async () => {
+    if (!user) return;
+    setIsSyncing(true);
+    try {
+      const batch = writeBatch(db);
+      records.forEach(record => {
+        batch.delete(doc(db, 'audits', record.id));
+      });
+      // También borrar acciones asociadas si no se borraron antes
+      actions.forEach(action => {
+        batch.delete(doc(db, 'actions', action.id));
+      });
+      await batch.commit();
+      setRecords([]);
+      setActions([]);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, 'audits/all');
+    } finally {
+      setIsSyncing(false);
+    }
+  }, [user, records, actions]);
+
+  const handleResetDatabase = useCallback(async () => {
+    if (!user || user.email !== 'bartolodelarosarivera@gmail.com') {
+      alert("Acceso denegado: Solo el propietario puede resetear la base de datos.");
+      return;
+    }
+    
+    if (!window.confirm('¿ELIMINAR TODO? Se borrarán auditorías, hallazgos y se reseteará la configuración. Esta acción es IRREVERSIBLE.')) {
+      return;
+    }
+
+    setIsSyncing(true);
+    try {
+      const batch = writeBatch(db);
+      records.forEach(record => {
+        batch.delete(doc(db, 'audits', record.id));
+      });
+      actions.forEach(action => {
+        batch.delete(doc(db, 'actions', action.id));
+      });
+      
+      // Resetear config a valores por defecto
+      const configRef = doc(db, 'config', 'global_config');
+      batch.set(configRef, { ...DEFAULT_CONFIG, userId: user.uid });
+
+      await batch.commit();
+      setRecords([]);
+      setActions([]);
+      setConfig(DEFAULT_CONFIG);
+      alert("Base de datos restablecida correctamente.");
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, 'database/master_reset');
+    } finally {
+      setIsSyncing(false);
+    }
+  }, [user, records, actions]);
 
   const generateDemo = () => {
     const demo = config.areas.slice(0, 8).map((area, i) => ({
@@ -427,7 +493,14 @@ const App: React.FC = () => {
                   onClearActions={handleClearActions} 
                 />
               )}
-              {view === 'settings' && <SettingsView config={config} onUpdateConfig={handleUpdateConfig} />}
+              {view === 'settings' && (
+                <SettingsView 
+                  config={config} 
+                  user={user}
+                  onUpdateConfig={handleUpdateConfig} 
+                  onResetDatabase={handleResetDatabase}
+                />
+              )}
               {view === 'ai-editor' && <AIEditor />}
             </main>
 
