@@ -1,4 +1,4 @@
-import { initializeApp } from 'firebase/app';
+import { initializeApp, getApp, getApps } from 'firebase/app';
 import { 
   getAuth, 
   GoogleAuthProvider, 
@@ -24,17 +24,36 @@ import {
 } from 'firebase/firestore';
 import firebaseConfig from '../firebase-applet-config.json';
 
-const app = initializeApp(firebaseConfig);
-export const auth = getAuth(app);
+let app: any;
+let auth: any;
+let db: any;
 
-// Set persistence explicitly to local
-setPersistence(auth, browserLocalPersistence).catch(err => console.error("Persistence error:", err));
+const isConfigValid = firebaseConfig && firebaseConfig.apiKey && firebaseConfig.apiKey !== "";
 
-export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+try {
+  if (isConfigValid) {
+    app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+    auth = getAuth(app);
+    db = getFirestore(app, firebaseConfig.firestoreDatabaseId || undefined);
+    
+    // Set persistence explicitly to local
+    setPersistence(auth, browserLocalPersistence).catch(err => console.error("Persistence error:", err));
+  } else {
+    throw new Error("Configuración de Firebase incompleta");
+  }
+} catch (e) {
+  console.error("Firebase initialization failed:", e);
+  // Re-throw or handle as non-configured
+  auth = { currentUser: null, onAuthStateChanged: (cb: any) => { cb(null); return () => {}; } };
+  db = {};
+}
+
+export { auth, db, isConfigValid as isFirebaseConfigured };
 
 const googleProvider = new GoogleAuthProvider();
 
 export const loginWithGoogle = async () => {
+  if (!isConfigValid) throw new Error("Firebase no está configurado. Use 'set_up_firebase' primero.");
   try {
     const result = await signInWithPopup(auth, googleProvider);
     return result.user;
@@ -44,9 +63,13 @@ export const loginWithGoogle = async () => {
   }
 };
 
-export const logout = () => signOut(auth);
+export const logout = () => isConfigValid ? signOut(auth) : Promise.resolve();
 
 export const subscribeToAuth = (callback: (user: User | null) => void) => {
+  if (!isConfigValid || !auth.onAuthStateChanged) {
+    callback(null);
+    return () => {};
+  }
   return onAuthStateChanged(auth, callback);
 };
 

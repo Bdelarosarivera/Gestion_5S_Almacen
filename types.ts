@@ -47,6 +47,13 @@ export interface AppConfig {
   areas: string[];
   responsables: { name: string; area?: string }[];
   questions: Question[];
+  smtp?: {
+    user: string;
+    pass: string;
+    host?: string;
+    port?: number;
+    secure?: boolean;
+  };
 }
 
 export type ViewState = 'home' | 'form' | 'dashboard' | 'history' | 'ai-editor' | 'consolidated' | 'actions' | 'settings';

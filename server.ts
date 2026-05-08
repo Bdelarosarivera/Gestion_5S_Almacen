@@ -57,10 +57,17 @@ async function startServer() {
   // API para enviar el reporte (PROTEGIDA)
   app.post('/api/send-report', verifyAuth, async (req, res) => {
     console.log('Solicitud de envío de reporte recibida');
-    const { to, subject, message, attachments, images } = req.body;
+    const { to, subject, message, attachments, images, auditorName } = req.body;
     
     // --- NUEVA LÓGICA HIBRIDAS ---
-    const { RESEND_API_KEY, SMTP_USER, SMTP_PASS, SMTP_HOST, SMTP_PORT } = process.env;
+    const { RESEND_API_KEY, SMTP_USER: ENV_USER, SMTP_PASS: ENV_PASS, SMTP_HOST: ENV_HOST, SMTP_PORT: ENV_PORT } = process.env;
+    const { smtpConfig } = req.body;
+
+    // Determinar qué credenciales usar (Prioridad: Configuración en App > Variables de Entorno)
+    const SMTP_USER = smtpConfig?.user || ENV_USER;
+    const SMTP_PASS = smtpConfig?.pass || ENV_PASS;
+    const SMTP_HOST = smtpConfig?.host || ENV_HOST || 'smtp.gmail.com';
+    const SMTP_PORT = smtpConfig?.port || ENV_PORT || '587';
 
     // Prioridad 1: RESEND API (Solución definitiva para Render)
     if (RESEND_API_KEY) {
@@ -72,7 +79,7 @@ async function startServer() {
           from: 'AuditCheck Pro <onboarding@resend.dev>', 
           to: [to],
           subject: subject,
-          html: generateHtmlBody(message, 'dashboard_image', 'performance_image'),
+          html: generateHtmlBody(message, 'dashboard_image', 'performance_image', auditorName),
           attachments: [
             // Excel como adjunto normal
             {
@@ -97,6 +104,14 @@ async function startServer() {
 
         if (error) {
           console.error('Error reportado por Resend API:', error);
+          // Si el error es de tipo "prohibido" o "no verificado", informamos al usuario sobre el Sandbox
+          const errorMsg = (error as any).message || 'Error desconocido en Resend';
+          if (errorMsg.includes('unverified') || (error as any).name === 'forbidden' || (error as any).name === 'validation_error') {
+            return res.status(403).json({
+              error: 'Error de Restricción (Resend Sandbox)',
+              details: `Resend en modo gratuito solo permite enviar correos a la dirección verificada. Para enviar a "${to}", debe verificar su dominio o usar credenciales SMTP.`
+            });
+          }
           throw error;
         }
 
@@ -108,7 +123,14 @@ async function startServer() {
         });
       } catch (resendError: any) {
         console.error('Fallo Resend API:', resendError);
-        // Si falla Resend, solo continuamos a SMTP si el usuario explícitamente tiene credenciales
+        // Si no hay SMTP configurado, devolvemos el error de Resend inmediatamente
+        if (!SMTP_USER || !SMTP_PASS) {
+          return res.status(500).json({ 
+            error: 'Fallo al enviar vía Resend',
+            details: resendError.message || 'Error inesperado en el servicio de correo.' 
+          });
+        }
+        // Si hay SMTP, continuamos para intentar el fallback
       }
     }
 
@@ -204,7 +226,7 @@ async function startServer() {
         from: SMTP_USER,
         to,
         subject,
-        html: generateHtmlBody(message, 'dashboard_image', 'performance_image'),
+        html: generateHtmlBody(message, 'dashboard_image', 'performance_image', auditorName),
         attachments: [
           // Excel adjunto
           {
@@ -236,7 +258,8 @@ async function startServer() {
   });
 
   // Función auxiliar para generar el HTML con imágenes incrustadas (usando Content-ID)
-  function generateHtmlBody(message: string, chartCid: string, consolidatedCid: string) {
+  function generateHtmlBody(message: string, chartCid: string, consolidatedCid: string, auditorName?: string) {
+    const signature = auditorName ? `Auditoría realizada por ${auditorName}` : "Hecho por Bartolo de la Rosa";
     return `<div style="font-family: Arial, sans-serif; color: #333; max-width: 800px; margin: 0 auto; background: #f8fafc; padding: 20px; border-radius: 12px;">
         <h2 style="color: #1e293b; border-bottom: 2px solid #3b82f6; padding-bottom: 10px;">Reporte de Auditoría 5S</h2>
         <p style="font-size: 16px; line-height: 1.5;">${message.replace(/\n/g, '<br>')}</p>
@@ -258,7 +281,7 @@ async function startServer() {
         <div style="margin-top: 30px; border-top: 1px solid #e2e8f0; padding-top: 20px; font-size: 12px; color: #64748b; text-align: center;">
           <p>Este es un correo automático generado por <strong>AuditCheck Pro AI Engine</strong>.</p>
           <p>Los archivos detallados se encuentran adjuntos en formato Excel.</p>
-          <p style="margin-top: 10px; font-weight: bold; color: #1e293b;">Hecho por Bartolo de la Rosa</p>
+          <p style="margin-top: 10px; font-weight: bold; color: #1e293b;">${signature}</p>
         </div>
       </div>`;
   }

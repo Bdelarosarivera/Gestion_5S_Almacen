@@ -29,7 +29,8 @@ import {
   logout, 
   subscribeToAuth, 
   handleFirestoreError,
-  OperationType 
+  OperationType,
+  isFirebaseConfigured
 } from './services/firebaseService';
 import { 
   collection, 
@@ -353,7 +354,22 @@ const App: React.FC = () => {
     return (
       <div className="min-h-screen bg-[#0f172a] flex flex-col items-center justify-center gap-4">
         <Loader2 className="w-12 h-12 text-blue-500 animate-spin" />
-        <p className="text-blue-500 font-black tracking-widest text-[10px] uppercase">Verificando Sesión de Google...</p>
+        <p className="text-blue-500 font-black tracking-widest text-[10px] uppercase">Verificando Sesión...</p>
+      </div>
+    );
+  }
+
+  if (!isFirebaseConfigured) {
+    return (
+      <div className="min-h-screen bg-[#0f172a] flex flex-col items-center justify-center p-4">
+        <div className="max-w-md w-full bg-[#1e293b] p-8 rounded-3xl border border-red-500/20 text-center space-y-6">
+          <div className="bg-red-500/10 w-16 h-16 rounded-full flex items-center justify-center mx-auto">
+            <Lock className="w-8 h-8 text-red-500" />
+          </div>
+          <h1 className="text-2xl font-black">Configuración Requerida</h1>
+          <p className="text-gray-400 text-sm">Se ha detectado que falta la configuración de Firebase. Por favor, haga clic en el botón de configuración de Firebase en el panel lateral para habilitar la base de datos.</p>
+          <p className="text-gray-500 text-[10px] font-bold uppercase">Nota: Eliminar el archivo de configuración desactiva la aplicación.</p>
+        </div>
       </div>
     );
   }
@@ -482,7 +498,7 @@ const App: React.FC = () => {
                 </div>
               )}
               {view === 'form' && <AuditForm initialData={editingRecord} config={config} onSave={handleSaveAudit} onCancel={() => setView('home')} />}
-              {view === 'dashboard' && <Dashboard records={records} actions={actions} onViewConsolidated={() => setView('consolidated')} onViewActions={() => setView('actions')} onGenerateDemo={generateDemo} />}
+              {view === 'dashboard' && <Dashboard records={records} actions={actions} config={config} onViewConsolidated={() => setView('consolidated')} onViewActions={() => setView('actions')} onGenerateDemo={generateDemo} />}
               {view === 'history' && <History records={records} actions={actions} onEdit={(r) => { setEditingRecord(r); setView('form'); }} onDelete={handleDeleteRecord} onClearHistory={handleClearHistory} />}
               {view === 'consolidated' && <ConsolidatedView records={records} onBack={() => setView('dashboard')} />}
               {view === 'actions' && (

@@ -12,7 +12,7 @@ import {
   Pie
 } from 'recharts';
 import html2canvas from 'html2canvas';
-import { AuditRecord, ActionItem } from '../types';
+import { AuditRecord, ActionItem, AppConfig } from '../types';
 import { 
   Trophy, 
   ClipboardList, 
@@ -39,6 +39,7 @@ import * as XLSX from 'xlsx';
 interface DashboardProps {
   records: AuditRecord[];
   actions: ActionItem[];
+  config: AppConfig;
   onViewConsolidated: () => void;
   onViewActions: () => void;
   onGenerateDemo?: () => void;
@@ -60,7 +61,7 @@ const StatCard = ({ label, value, color, icon: Icon, onClick }: any) => (
     </div>
 );
 
-export const Dashboard: React.FC<DashboardProps> = ({ records = [], actions = [], onViewConsolidated, onViewActions, onGenerateDemo }) => {
+export const Dashboard: React.FC<DashboardProps> = ({ records = [], actions = [], config, onViewConsolidated, onViewActions, onGenerateDemo }) => {
   const [isReady, setIsReady] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [showEmailModal, setShowEmailModal] = useState(false);
@@ -250,32 +251,44 @@ export const Dashboard: React.FC<DashboardProps> = ({ records = [], actions = []
       // 3. Generar Excel (Audit y Plan de Acción)
       const wb = XLSX.utils.book_new();
       
-      const auditData = records.map(r => ({
-        ID: r.id,
-        Fecha: r.date,
-        Área: r.area,
-        Responsable: r.responsable,
-        Resultado: `${r.score}%`,
-        Observaciones: r.notes
-      }));
+      const auditData = filteredRecords.map(r => {
+        const row: any = {
+          'ID': r.id,
+          'Fecha_Auditoria': new Date(r.date + 'T12:00:00').toLocaleDateString(),
+          'Area': r.area,
+          'Responsable': r.responsable || 'N/A',
+          'Auditor': r.auditor,
+          'Puntaje_Porcentaje': r.score
+        };
+        // Incluir respuestas detalladas
+        r.answers.forEach(ans => {
+          row[`P${ans.questionId}_Calificacion`] = ans.rating;
+        });
+        return row;
+      });
       const wsAudit = XLSX.utils.json_to_sheet(auditData);
-      XLSX.utils.book_append_sheet(wb, wsAudit, "Auditorías");
+      XLSX.utils.book_append_sheet(wb, wsAudit, "BD_Auditorias");
 
-      const actionData = actions.map(a => ({
-        ID: a.id,
-        Área: a.area,
-        Hallazgo: a.finding,
-        Acción: a.action,
-        Responsable: a.responsable,
-        Estatus: a.status === 'OPEN' ? 'ABIERTO' : 'CERRADO',
-        Fecha_Límite: a.dueDate
+      const actionData = filteredActions.map(a => ({
+        'ID_Auditoria': a.auditId,
+        'Hallazgo_ID': a.id,
+        'Area_Hallazgo': a.area,
+        'Pregunta_Incumplida': a.questionText,
+        'Accion_Correctiva': a.suggestedAction,
+        'Responsable_Ejecucion': a.responsable,
+        'Fecha_Vencimiento': new Date(a.dueDate + 'T12:00:00').toLocaleDateString(),
+        'Estado': a.status === 'PENDING' ? 'Pendiente' : a.status === 'IN_PROGRESS' ? 'En Proceso' : 'Cerrado',
+        'Comentarios_Seguimiento': a.comments || '',
+        'Fecha_Creacion': new Date(a.createdAt).toLocaleDateString()
       }));
       const wsActions = XLSX.utils.json_to_sheet(actionData);
-      XLSX.utils.book_append_sheet(wb, wsActions, "Plan de Acción");
+      XLSX.utils.book_append_sheet(wb, wsActions, "BD_Plan_Accion");
 
       const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'base64' });
 
       // 4. Enviar al Servidor
+      const auditorNames = Array.from(new Set(filteredRecords.map(r => r.auditor))).filter(Boolean).join(', ') || 'Bartolo de la Rosa';
+      
       const token = localStorage.getItem('auth_token') || '';
       const response = await fetch('/api/send-report', {
         method: 'POST',
@@ -296,7 +309,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ records = [], actions = []
           images: {
             chart: dashboardImage,
             consolidated: performanceImage
-          }
+          },
+          auditorName: auditorNames,
+          smtpConfig: config.smtp
         })
       });
 

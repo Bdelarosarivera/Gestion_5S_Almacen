@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { AppConfig } from '../types';
-import { Plus, Trash2, Edit2, Check, X, Settings as SettingsIcon, Users, MapPin, HelpCircle, Lock, Eye, EyeOff, ShieldAlert } from 'lucide-react';
+import { Plus, Trash2, Edit2, Check, X, Settings as SettingsIcon, Users, MapPin, HelpCircle, Lock, Eye, EyeOff, ShieldAlert, Mail } from 'lucide-react';
 import { User } from 'firebase/auth';
 
 interface SettingsViewProps {
@@ -134,12 +134,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ config, user, onUpda
         >
           PREGUNTAS DE AUDITORÍA
         </button>
-        <button 
-          onClick={() => setActiveTab('security')} 
-          className={`flex-1 py-4 text-xs font-bold transition-all tracking-widest ${activeTab === 'security' ? 'text-blue-400 border-b-2 border-blue-500 bg-blue-500/10' : 'text-gray-500 hover:text-gray-300'}`}
-        >
-          SEGURIDAD Y CORREO
-        </button>
+        {isSuperAdmin && (
+          <button 
+            onClick={() => setActiveTab('security')} 
+            className={`flex-1 py-4 text-xs font-bold transition-all tracking-widest ${activeTab === 'security' ? 'text-blue-400 border-b-2 border-blue-500 bg-blue-500/10' : 'text-gray-500 hover:text-gray-300'}`}
+          >
+            SEGURIDAD Y CORREO
+          </button>
+        )}
         {isSuperAdmin && (
           <button 
             onClick={() => setActiveTab('admin')} 
@@ -299,7 +301,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ config, user, onUpda
             </div>
           </div>
         )}
-        {activeTab === 'security' && (
+        {activeTab === 'security' && isSuperAdmin && (
           <div className="space-y-6">
             <div className="bg-[#0f172a] p-6 rounded-2xl border border-gray-700 space-y-4">
               <div className="flex items-center gap-3 mb-2">
@@ -341,6 +343,63 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ config, user, onUpda
                 >
                   <Check className="w-5 h-5" /> GUARDAR TOKEN EN NAVEGADOR
                 </button>
+              </div>
+            </div>
+
+            <div className="bg-[#0f172a] p-6 rounded-2xl border border-gray-700 space-y-4">
+              <div className="flex items-center gap-2 text-blue-500">
+                <Mail className="w-5 h-5" />
+                <h4 className="text-xs font-bold uppercase tracking-widest">Configuración SMTP Manual</h4>
+              </div>
+              <p className="text-[10px] text-gray-500 italic">
+                Use estos campos si no desea configurar variables de entorno en el servidor. 
+                <strong> Si usa Gmail, use una "Contraseña de Aplicación".</strong>
+              </p>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="text-[10px] text-gray-400 font-bold ml-1">USUARIO (GMAIL)</label>
+                  <input 
+                    type="text" 
+                    value={config.smtp?.user || ''} 
+                    onChange={(e) => onUpdateConfig({ ...config, smtp: { ...(config.smtp || { user: '', pass: '' }), user: e.target.value } })}
+                    placeholder="su-correo@gmail.com"
+                    className="w-full bg-[#1e293b] border border-gray-700 rounded-xl p-3 text-sm text-white focus:ring-1 focus:ring-blue-500 outline-none" 
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] text-gray-400 font-bold ml-1">CONTRASEÑA (16 DÍGITOS)</label>
+                  <input 
+                    type="password" 
+                    value={config.smtp?.pass || ''} 
+                    onChange={(e) => onUpdateConfig({ ...config, smtp: { ...(config.smtp || { user: '', pass: '' }), pass: e.target.value } })}
+                    placeholder="•••• •••• •••• ••••"
+                    className="w-full bg-[#1e293b] border border-gray-700 rounded-xl p-3 text-sm text-white focus:ring-1 focus:ring-blue-500 outline-none" 
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="text-[10px] text-gray-400 font-bold ml-1">HOST (OPCIONAL)</label>
+                  <input 
+                    type="text" 
+                    value={config.smtp?.host || ''} 
+                    onChange={(e) => onUpdateConfig({ ...config, smtp: { ...(config.smtp || { user: '', pass: '' }), host: e.target.value } })}
+                    placeholder="smtp.gmail.com"
+                    className="w-full bg-[#1e293b] border border-gray-700 rounded-xl p-3 text-sm text-white focus:ring-1 focus:ring-blue-500 outline-none" 
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] text-gray-400 font-bold ml-1">PUERTO (OPCIONAL)</label>
+                  <input 
+                    type="number" 
+                    value={config.smtp?.port || ''} 
+                    onChange={(e) => onUpdateConfig({ ...config, smtp: { ...(config.smtp || { user: '', pass: '' }), port: parseInt(e.target.value) || undefined } })}
+                    placeholder="587"
+                    className="w-full bg-[#1e293b] border border-gray-700 rounded-xl p-3 text-sm text-white focus:ring-1 focus:ring-blue-500 outline-none" 
+                  />
+                </div>
               </div>
             </div>
 
