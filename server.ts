@@ -72,19 +72,25 @@ async function startServer() {
           from: 'AuditCheck Pro <onboarding@resend.dev>', 
           to: [to],
           subject: subject,
-          html: generateHtmlBody(message),
+          html: generateHtmlBody(message, 'dashboard_image', 'performance_image'),
           attachments: [
+            // Excel como adjunto normal
             {
               filename: attachments[0].filename,
               content: Buffer.from(attachments[0].content, 'base64'),
             },
+            // Imágenes incrustadas con CID para Resend
             {
-              filename: 'dashboard_capture.jpg',
-              content: Buffer.from(images.chart.includes(',') ? images.chart.split(',')[1] : images.chart, 'base64'),
+              filename: 'dashboard.jpg',
+              content: Buffer.from(images.chart.split(',')[1] || images.chart, 'base64'),
+              content_id: 'dashboard_image',
+              disposition: 'inline'
             },
             {
-              filename: 'performance_summary.jpg',
-              content: Buffer.from(images.consolidated.includes(',') ? images.consolidated.split(',')[1] : images.consolidated, 'base64'),
+              filename: 'performance.jpg',
+              content: Buffer.from(images.consolidated.split(',')[1] || images.consolidated, 'base64'),
+              content_id: 'performance_image',
+              disposition: 'inline'
             }
           ]
         });
@@ -198,23 +204,25 @@ async function startServer() {
         from: SMTP_USER,
         to,
         subject,
-        html: generateHtmlBody(message),
+        html: generateHtmlBody(message, 'dashboard_image', 'performance_image'),
         attachments: [
           // Excel adjunto
           {
             filename: attachments[0].filename,
             content: Buffer.from(attachments[0].content, 'base64'),
           },
-          // Imágenes incrustadas (CID)
+          // Imágenes incrustadas con CID para Nodemailer
           {
-            filename: 'dashboard_capture.jpg',
-            content: Buffer.from(images.chart.includes(',') ? images.chart.split(',')[1] : images.chart, 'base64'),
-            cid: 'dashboard_image'
+            filename: 'dashboard.jpg',
+            content: Buffer.from(images.chart.split(',')[1] || images.chart, 'base64'),
+            cid: 'dashboard_image',
+            disposition: 'inline'
           },
           {
-            filename: 'performance_summary.jpg',
-            content: Buffer.from(images.consolidated.includes(',') ? images.consolidated.split(',')[1] : images.consolidated, 'base64'),
-            cid: 'performance_image'
+            filename: 'performance.jpg',
+            content: Buffer.from(images.consolidated.split(',')[1] || images.consolidated, 'base64'),
+            cid: 'performance_image',
+            disposition: 'inline'
           }
         ],
       };
@@ -227,8 +235,8 @@ async function startServer() {
     }
   });
 
-  // Función auxiliar para generar el HTML
-  function generateHtmlBody(message: string) {
+  // Función auxiliar para generar el HTML con imágenes incrustadas (usando Content-ID)
+  function generateHtmlBody(message: string, chartCid: string, consolidatedCid: string) {
     return `<div style="font-family: Arial, sans-serif; color: #333; max-width: 800px; margin: 0 auto; background: #f8fafc; padding: 20px; border-radius: 12px;">
         <h2 style="color: #1e293b; border-bottom: 2px solid #3b82f6; padding-bottom: 10px;">Reporte de Auditoría 5S</h2>
         <p style="font-size: 16px; line-height: 1.5;">${message.replace(/\n/g, '<br>')}</p>
@@ -236,20 +244,21 @@ async function startServer() {
         <div style="margin-top: 30px;">
           <h3 style="color: #1e293b; font-size: 18px; margin-bottom: 15px;">Captura del Dashboard General</h3>
           <div style="background: #0f172a; padding: 15px; border-radius: 12px; border: 1px solid #334155;">
-            <img src="cid:dashboard_image" style="max-width: 100%; height: auto; border-radius: 8px;" />
+            <img src="cid:${chartCid}" style="max-width: 100%; height: auto; border-radius: 8px;" />
           </div>
         </div>
 
         <div style="margin-top: 40px;">
           <h3 style="color: #1e293b; font-size: 18px; margin-bottom: 15px;">Resumen de Desempeño por Áreas (Top 5)</h3>
           <div style="background: #0f172a; padding: 15px; border-radius: 12px; border: 1px solid #334155;">
-            <img src="cid:performance_image" style="max-width: 100%; height: auto; border-radius: 8px;" />
+            <img src="cid:${consolidatedCid}" style="max-width: 100%; height: auto; border-radius: 8px;" />
           </div>
         </div>
 
         <div style="margin-top: 30px; border-top: 1px solid #e2e8f0; padding-top: 20px; font-size: 12px; color: #64748b; text-align: center;">
           <p>Este es un correo automático generado por <strong>AuditCheck Pro AI Engine</strong>.</p>
           <p>Los archivos detallados se encuentran adjuntos en formato Excel.</p>
+          <p style="margin-top: 10px; font-weight: bold; color: #1e293b;">Hecho por Bartolo de la Rosa</p>
         </div>
       </div>`;
   }
