@@ -1,14 +1,18 @@
 import React, { useState } from 'react';
 import { AppConfig } from '../types';
-import { Plus, Trash2, Edit2, Check, X, Settings as SettingsIcon, Users, MapPin, HelpCircle, Lock, Eye, EyeOff } from 'lucide-react';
+import { Plus, Trash2, Edit2, Check, X, Settings as SettingsIcon, Users, MapPin, HelpCircle, Lock, Eye, EyeOff, ShieldAlert } from 'lucide-react';
+import { User } from 'firebase/auth';
 
 interface SettingsViewProps {
   config: AppConfig;
+  user: User | null;
   onUpdateConfig: (newConfig: AppConfig) => void;
+  onResetDatabase?: () => void;
 }
 
-export const SettingsView: React.FC<SettingsViewProps> = ({ config, onUpdateConfig }) => {
-  const [activeTab, setActiveTab] = useState<'areas' | 'questions' | 'security'>('areas');
+export const SettingsView: React.FC<SettingsViewProps> = ({ config, user, onUpdateConfig, onResetDatabase }) => {
+  const [activeTab, setActiveTab] = useState<'areas' | 'questions' | 'security' | 'admin'>('areas');
+  const isSuperAdmin = user?.email === 'bartolodelarosarivera@gmail.com';
   const [authToken, setAuthToken] = useState(localStorage.getItem('auth_token') || 'admin123');
   const [showToken, setShowToken] = useState(false);
   
@@ -136,6 +140,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ config, onUpdateConf
         >
           SEGURIDAD Y CORREO
         </button>
+        {isSuperAdmin && (
+          <button 
+            onClick={() => setActiveTab('admin')} 
+            className={`flex-1 py-4 text-xs font-bold transition-all tracking-widest ${activeTab === 'admin' ? 'text-red-400 border-b-2 border-red-500 bg-red-500/10' : 'text-gray-500 hover:text-gray-300'}`}
+          >
+            ADMIN MAESTRA
+          </button>
+        )}
       </div>
 
       <div className="p-6">
@@ -354,6 +366,47 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ config, onUpdateConf
                   <div className="bg-gray-800 h-5 w-5 rounded-full flex items-center justify-center shrink-0 text-white font-bold">3</div>
                   <p>Si ve el error <code className="text-red-400">ENETUNREACH</code>, el servidor está intentando usar IPv6. El sistema está configurado para forzar IPv4 automáticamente.</p>
                 </div>
+              </div>
+            </div>
+          </div>
+        )}
+        {activeTab === 'admin' && isSuperAdmin && (
+          <div className="space-y-6">
+            <div className="bg-red-600/10 p-6 rounded-2xl border border-red-500/20 space-y-4 shadow-xl">
+              <div className="flex items-center gap-3">
+                <div className="bg-red-600 p-2 rounded-xl">
+                  <ShieldAlert className="w-6 h-6 text-white" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black text-white uppercase tracking-tight">Zona de Peligro Administrativa</h3>
+                  <p className="text-[10px] text-red-400 font-bold uppercase tracking-widest">Solo visible para: {user?.email}</p>
+                </div>
+              </div>
+              
+              <div className="p-4 bg-red-500/5 border border-red-500/10 rounded-xl space-y-2">
+                <p className="text-xs text-gray-300 leading-relaxed font-medium">
+                  Esta sección permite realizar un mantenimiento profundo de la base de datos. Use estas herramientas con extrema precaución ya que los cambios son inmediatos.
+                </p>
+                <ul className="text-[10px] text-gray-400 space-y-1 list-disc ml-4 font-bold uppercase tracking-tight">
+                  <li>Borrado masivo de auditorías históricas</li>
+                  <li>Limpieza de todos los hallazgos del plan de acción</li>
+                  <li>Reinicio de configuración de áreas, responsables y preguntas a valores por defecto</li>
+                </ul>
+              </div>
+
+              <div className="pt-4">
+                <button 
+                  onClick={onResetDatabase}
+                  className="w-full bg-red-600 hover:bg-red-700 text-white py-6 rounded-2xl font-black transition-all shadow-xl shadow-red-600/20 flex flex-col items-center justify-center gap-1 group border border-red-500/30"
+                >
+                  <span className="flex items-center gap-2 text-lg">
+                    <Trash2 className="w-6 h-6 group-hover:scale-110 transition-transform" /> RESETEO MAESTRO DE DATOS
+                  </span>
+                  <span className="text-[10px] opacity-70 uppercase tracking-tighter">(Auditorías + Hallazgos + Configuración)</span>
+                </button>
+                <p className="text-center text-[10px] text-red-500/40 mt-4 font-black uppercase tracking-[0.2em] animate-pulse">
+                  ⚠️ ESTA OPERACIÓN ELIMINARÁ FÍSICAMENTE TODOS LOS DATOS
+                </p>
               </div>
             </div>
           </div>
