@@ -11,6 +11,10 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    function isSuperAdmin() {
+      return isSignedIn() && request.auth.token.email == "bartolodelarosarivera@gmail.com";
+    }
+
     function isOwner(data) {
       return isSignedIn() && data.userId == request.auth.uid;
     }
@@ -35,7 +39,7 @@ service cloud.firestore {
              data.date is string &&
              data.score is number &&
              data.answers is list &&
-             data.userId == request.auth.uid;
+             data.userId is string; // Permitimos que cualquier ID de usuario sea el responsable
     }
 
     function isValidAction(data) {
@@ -45,36 +49,36 @@ service cloud.firestore {
              data.questionId is number &&
              data.suggestedAction is string && data.suggestedAction.size() <= 1000 &&
              data.status in ['PENDING', 'IN_PROGRESS', 'CLOSED'] &&
-             data.userId == request.auth.uid;
+             data.userId is string;
     }
 
     function isValidConfig(data) {
       return data.areas is list &&
              data.responsables is list &&
              data.questions is list &&
-             data.userId == request.auth.uid;
+             data.userId is string;
     }
 
     // Collection Rules
     match /audits/{auditId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn() && isValidId(auditId) && isValidAudit(incoming());
-      allow update: if isOwner(existing()) && isValidAudit(incoming()) && incoming().userId == existing().userId;
-      allow delete: if isOwner(existing());
+      allow update: if isSignedIn() && isValidAudit(incoming()); // Cualquier auditor puede actualizar
+      allow delete: if isSignedIn(); // Cualquier auditor puede eliminar (incluyendo el "borrar todo" del owner)
     }
 
     match /actions/{actionId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn() && isValidId(actionId) && isValidAction(incoming());
-      allow update: if isOwner(existing()) && isValidAction(incoming()) && incoming().userId == existing().userId;
-      allow delete: if isOwner(existing());
+      allow update: if isSignedIn() && isValidAction(incoming());
+      allow delete: if isSignedIn();
     }
 
     match /config/{configId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn() && isValidId(configId) && isValidConfig(incoming());
-      allow update: if isOwner(existing()) && isValidConfig(incoming()) && incoming().userId == existing().userId;
-      allow delete: if isOwner(existing());
+      allow update: if isSignedIn() && isValidConfig(incoming());
+      allow delete: if isSuperAdmin(); // Solo el super admin puede borrar la config
     }
   }
 }
