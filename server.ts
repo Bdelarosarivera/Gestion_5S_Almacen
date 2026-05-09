@@ -10,11 +10,12 @@ import helmet from 'helmet';
 // VARIABLES DE ENTORNO — Configurar en el panel de Render:
 //
 //   RESEND_API_KEY  → Tu API Key de resend.com
+//   GMAIL_FROM      → Tu correo Gmail (ej: tucorreo@gmail.com)
+//                     IMPORTANTE: Debes verificarlo en resend.com/settings/emails
+//                     Resend te enviará un link de verificación a ese Gmail.
 //   ADMIN_PASSWORD  → Contraseña para proteger la API del servidor
 //
 // ─────────────────────────────────────────────────────────────────────────────
-
-const GMAIL_FROM = 'bartolodelarosarivera@gmail.com';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DATA_FILE = path.join(__dirname, 'data.json');
@@ -60,7 +61,7 @@ async function startServer() {
     console.log('Solicitud de envío de reporte recibida');
 
     const { to, subject, message, attachments, images, auditorName } = req.body;
-    const { RESEND_API_KEY } = process.env;
+    const { RESEND_API_KEY, GMAIL_FROM } = process.env;
 
     // Validar variables de entorno
     if (!RESEND_API_KEY) {
@@ -68,6 +69,14 @@ async function startServer() {
       return res.status(500).json({
         error: 'Configuración incompleta',
         details: 'Falta la variable RESEND_API_KEY. Agréguela en Environment Variables de Render.'
+      });
+    }
+
+    if (!GMAIL_FROM) {
+      console.error('Falta GMAIL_FROM');
+      return res.status(500).json({
+        error: 'Configuración incompleta',
+        details: 'Falta la variable GMAIL_FROM con su correo Gmail. Agréguela en Render y verifique ese correo en resend.com/settings/emails'
       });
     }
 
@@ -111,6 +120,7 @@ async function startServer() {
         const errorMsg  = (error as any).message || 'Error desconocido';
         const errorName = (error as any).name    || '';
 
+        // Error de sandbox: el Gmail remitente aún no fue verificado en Resend
         const isSandbox =
           errorMsg.includes('unverified') ||
           errorName === 'forbidden'       ||
@@ -119,7 +129,7 @@ async function startServer() {
         if (isSandbox) {
           return res.status(403).json({
             error: 'Gmail no verificado en Resend',
-            details: `El correo "${GMAIL_FROM}" no está verificado como remitente. Ingrese a resend.com/settings/emails, agréguelo y confirme el link que Resend le enviará.`
+            details: `El correo "${GMAIL_FROM}" no está verificado como remitente. Ingrese a resend.com/settings/emails, agréguelo y confirme el link que Resend le enviará a ese Gmail.`
           });
         }
 
