@@ -49,38 +49,61 @@ async function startServer() {
     }
   };
 
-  // API para cargar todos los datos sincronizados (DEPRECATED - Moved to Firestore)
-  // app.get('/api/data', verifyAuth, ...)
-  // app.post('/api/data', verifyAuth, ...)
-  // app.post('/api/login', ...)
-
   // API para enviar el reporte (PROTEGIDA)
   app.post('/api/send-report', verifyAuth, async (req, res) => {
     console.log('Solicitud de envío de reporte recibida');
     const { to, subject, message, attachments, images, auditorName } = req.body;
     
-    // --- NUEVA LÓGICA HIBRIDAS ---
-    const { RESEND_API_KEY, SMTP_USER: ENV_USER, SMTP_PASS: ENV_PASS, SMTP_HOST: ENV_HOST, SMTP_PORT: ENV_PORT } = process.env;
+    // --- LÓGICA DE ENVÍO ---
+    const {
+      RESEND_API_KEY,
+      // ✅ NUEVO: Variable de entorno para el remitente verificado en Resend
+      // Agregar en Render: RESEND_FROM = "AuditCheck Pro <reportes@tudominio.com>"
+      RESEND_FROM,
+      SMTP_USER: ENV_USER,
+      SMTP_PASS: ENV_PASS,
+      SMTP_HOST: ENV_HOST,
+      SMTP_PORT: ENV_PORT
+    } = process.env;
+    
     const { smtpConfig } = req.body;
 
-    // Determinar qué credenciales usar (Prioridad: Configuración en App > Variables de Entorno)
+    // Determinar qué credenciales SMTP usar (Prioridad: Configuración en App > Variables de Entorno)
     const SMTP_USER = smtpConfig?.user || ENV_USER;
     const SMTP_PASS = smtpConfig?.pass || ENV_PASS;
     const SMTP_HOST = smtpConfig?.host || ENV_HOST || 'smtp.gmail.com';
     const SMTP_PORT = smtpConfig?.port || ENV_PORT || '587';
 
-    // NUEVA PRIORIDAD: Si el usuario envió configuración SMTP MANUAL en el cuerpo de la petición, 
+    // Si el usuario envió configuración SMTP MANUAL en el cuerpo de la petición,
     // intentamos SMTP PRIMERO para respetar su elección explícita.
     const isManualSmtp = !!(smtpConfig?.user && smtpConfig?.pass);
 
-    // Prioridad 1: RESEND API (Solo si no es una configuración manual explícita y hay API KEY)
+    // ============================================================
+    // PRIORIDAD 1: RESEND API HTTP
+    // (Funciona en Render. No usa SMTP. No usa puertos bloqueados.)
+    // REQUISITO: Verificar tu dominio en resend.com/domains y
+    //            configurar la variable RESEND_FROM en Render.
+    // ============================================================
     if (RESEND_API_KEY && !isManualSmtp) {
       console.log('--- INTENTO DE ENVÍO VÍA RESEND API ---');
       const resend = new Resend(RESEND_API_KEY);
+
+      // ✅ CORRECCIÓN PRINCIPAL:
+      // Antes usaba 'onboarding@resend.dev' (dominio de sandbox = solo envía a tu email).
+      // Ahora usa la variable RESEND_FROM con tu dominio verificado.
+      // Si no tienes RESEND_FROM configurado, avisa claramente en lugar de fallar en silencio.
+      if (!RESEND_FROM) {
+        console.error('RESEND_FROM no está configurado en las variables de entorno.');
+        return res.status(500).json({
+          error: 'Configuración incompleta',
+          details: 'Falta la variable de entorno RESEND_FROM. Debe tener el formato: "NombreApp <correo@tudominio.com>". Configúrela en el panel de Render y asegúrese de que el dominio esté verificado en resend.com/domains.'
+        });
+      }
       
       try {
         const { data, error } = await resend.emails.send({
-          from: 'AuditCheck Pro <onboarding@resend.dev>', 
+          // ✅ USA EL REMITENTE VERIFICADO EN TU CUENTA RESEND
+          from: RESEND_FROM,
           to: [to],
           subject: subject,
           html: generateHtmlBody(message, 'dashboard_image', 'performance_image', auditorName),
@@ -109,19 +132,26 @@ async function startServer() {
         if (error) {
           console.error('Error reportado por Resend API:', error);
           const errorMsg = (error as any).message || 'Error desconocido';
-          const isRestriction = errorMsg.includes('unverified') || (error as any).name === 'forbidden' || (error as any).name === 'validation_error';
-          
-          if (isRestriction && (SMTP_USER && SMTP_PASS)) {
-            console.log('Resend restringido (Sandbox). Intentando FALLBACK a SMTP...');
-            // Fallsthrough to SMTP
-          } else if (isRestriction) {
+
+          // ✅ CORRECCIÓN: Ya NO hay fallback a SMTP porque Render bloquea los puertos 
+          //    SMTP (465/587). Devolvemos un error claro con instrucciones de solución.
+          const isRestriction =
+            errorMsg.includes('unverified') ||
+            (error as any).name === 'forbidden' ||
+            (error as any).name === 'validation_error';
+
+          if (isRestriction) {
             return res.status(403).json({
-              error: 'Error de Restricción (Resend Sandbox)',
-              details: `RESTRICCIÓN: Resend en modo gratuito solo permite enviar correos a la dirección verificada en su cuenta. Para enviar a "${to}", debe verificar ese email en Resend, o configurar correctamente sus credenciales SMTP en los Ajustes.`
+              error: 'Resend: Dominio no verificado',
+              details: `No se puede enviar a "${to}". Asegúrese de que su dominio esté verificado en resend.com/domains y que RESEND_FROM use ese dominio. En modo sandbox de Resend solo puede enviar al email de su cuenta.`
             });
-          } else {
-            throw error;
           }
+
+          return res.status(500).json({
+            error: 'Error al enviar vía Resend',
+            details: errorMsg
+          });
+
         } else {
           console.log('Correo enviado exitosamente vía Resend API:', data);
           return res.json({ 
@@ -130,23 +160,29 @@ async function startServer() {
             message: 'Reporte enviado con éxito vía Resend' 
           });
         }
+
       } catch (resendError: any) {
-        console.error('Fallo Resend API:', resendError);
-        if (!SMTP_USER || !SMTP_PASS) {
-          return res.status(500).json({ 
-            error: 'Fallo al enviar vía Resend',
-            details: resendError.message || 'Error inesperado.' 
-          });
-        }
+        console.error('Fallo Resend API (excepción):', resendError);
+        // ✅ Sin SMTP fallback en Render — devolvemos error directo
+        return res.status(500).json({ 
+          error: 'Fallo al enviar vía Resend',
+          details: resendError.message || 'Error inesperado en Resend API.'
+        });
       }
     }
 
-    // Prioridad 2: SMTP MANUAL (Fallback o si no hay Resend)
+    // ============================================================
+    // PRIORIDAD 2: SMTP MANUAL
+    // Solo se activa si el usuario ingresó credenciales SMTP manualmente
+    // en la app (isManualSmtp = true) o si no hay RESEND_API_KEY.
+    // NOTA: Esto NO funcionará en Render (plan gratuito) porque bloquea
+    //       los puertos 465 y 587. Solo funciona en servidores sin restricciones.
+    // ============================================================
     if (!SMTP_USER || !SMTP_PASS) {
       console.error('Configuración de correo incompleta');
       return res.status(500).json({ 
         error: 'Configuración incompleta',
-        details: 'Faltan credenciales SMTP. Por favor ingrese su Usuario (Gmail) y Contraseña de Aplicación en los Ajustes de la App.' 
+        details: 'Faltan credenciales. Configure RESEND_API_KEY y RESEND_FROM en Render, o ingrese sus credenciales SMTP en los Ajustes de la App.'
       });
     }
 
@@ -170,7 +206,7 @@ async function startServer() {
           servername: targetHost,
           minVersion: 'TLSv1.2'
         },
-        connectionTimeout: 15000, // 15s timeout para conexión inicial
+        connectionTimeout: 15000,
         greetingTimeout: 15000,
         socketTimeout: 30000,
         family: 4, // Forzar IPv4
@@ -217,8 +253,7 @@ async function startServer() {
     };
 
     try {
-      // Intento 1: Puerto 465 (Seguro por defecto - TLS)
-      // A menudo funciona mejor en entornos restringidos como Render
+      // Intento 1: Puerto 465 (TLS)
       try {
         console.log('Intentando Puerto 465 (SECURE: TRUE)...');
         await trySmtpSend(465, true);
@@ -231,11 +266,12 @@ async function startServer() {
         return res.json({ success: true, via: 'smtp-587', message: 'Reporte enviado vía SMTP (587)' });
       }
     } catch (finalError: any) {
-      console.error('TODOS LOS INTENTOS SMTP FALLARON EN RENDER:', finalError);
+      console.error('TODOS LOS INTENTOS SMTP FALLARON:', finalError);
       
       let errorMsg = finalError.message || 'Error de conexión desconocido';
       let details = 'No se pudo establecer conexión con el servidor SMTP. ';
       
+      if (errorMsg.includes('ENETUNREACH')) details += 'Red inalcanzable: Render bloquea puertos SMTP en plan gratuito. Use Resend API en su lugar.';
       if (errorMsg.includes('ECONNREFUSED')) details += 'La conexión fue rechazada. Verifique si el puerto está bloqueado.';
       if (errorMsg.includes('ETIMEDOUT')) details += 'Tiempo de espera agotado. El servidor no respondió.';
       if (errorMsg.includes('EAUTH')) details += 'Error de autenticación. Verifique su Gmail y "Contraseña de Aplicación".';
