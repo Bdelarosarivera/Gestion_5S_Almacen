@@ -108,17 +108,16 @@ async function startServer() {
 
         if (error) {
           console.error('Error reportado por Resend API:', error);
-          // Si el error es de tipo "prohibido" o "no verificado", y hay SMTP, continuamos al fallback
-          const errorMsg = (error as any).message || 'Error desconocido en Resend';
+          const errorMsg = (error as any).message || 'Error desconocido';
           const isRestriction = errorMsg.includes('unverified') || (error as any).name === 'forbidden' || (error as any).name === 'validation_error';
           
           if (isRestriction && (SMTP_USER && SMTP_PASS)) {
             console.log('Resend restringido (Sandbox). Intentando FALLBACK a SMTP...');
-            // No retornamos, permitimos que el código siga al bloque SMTP
+            // Fallsthrough to SMTP
           } else if (isRestriction) {
             return res.status(403).json({
               error: 'Error de Restricción (Resend Sandbox)',
-              details: `Resend en modo gratuito solo permite enviar correos a la dirección verificada. Para enviar a "${to}", debe verificar su dominio o usar credenciales SMTP.`
+              details: `RESTRICCIÓN: Resend en modo gratuito solo permite enviar correos a la dirección verificada en su cuenta. Para enviar a "${to}", debe verificar ese email en Resend, o configurar correctamente sus credenciales SMTP en los Ajustes.`
             });
           } else {
             throw error;
@@ -144,104 +143,58 @@ async function startServer() {
 
     // Prioridad 2: SMTP MANUAL (Fallback o si no hay Resend)
     if (!SMTP_USER || !SMTP_PASS) {
-      console.error('Configuración de correo incompleta (No hay RESEND_API_KEY ni credenciales SMTP)');
+      console.error('Configuración de correo incompleta');
       return res.status(500).json({ 
         error: 'Configuración incompleta',
-        details: 'Configure RESEND_API_KEY en Render para una solución 100% fiable, o proporcione credenciales SMTP válidas.' 
+        details: 'Faltan credenciales SMTP. Por favor ingrese su Usuario (Gmail) y Contraseña de Aplicación en los Ajustes de la App.' 
       });
     }
 
-    try {
+    // Intentar envío SMTP con estrategia de reintento/fallback de puertos
+    const trySmtpSend = async (port: number, secure: boolean) => {
       const targetHost = SMTP_HOST || 'smtp.gmail.com';
-      const targetPort = parseInt(SMTP_PORT || '587');
       const isGmail = targetHost.includes('gmail.com');
 
-      console.log(`--- INTENTO DE ENVÍO SMTP (HOST: ${targetHost}, PORT: ${targetPort}) ---`);
+      console.log(`--- INTENTO SMTP (HOST: ${targetHost}, PORT: ${port}, SECURE: ${secure}) ---`);
       
-      let transporterConfig: any = {
+      let config: any = {
         host: targetHost,
-        port: targetPort,
-        secure: targetPort === 465,
+        port: port,
+        secure: secure,
         auth: {
           user: SMTP_USER,
           pass: SMTP_PASS,
         },
         tls: {
           rejectUnauthorized: false,
+          servername: targetHost,
           minVersion: 'TLSv1.2'
         },
-        connectionTimeout: 20000,
-        greetingTimeout: 20000,
-        socketTimeout: 60000,
+        connectionTimeout: 15000, // 15s timeout para conexión inicial
+        greetingTimeout: 15000,
+        socketTimeout: 30000,
+        family: 4, // Forzar IPv4
+        debug: true,
+        logger: true
       };
 
-      // Si es Gmail, usar configuración manual optimizada para Render
+      // Si es Gmail, Nodemailer tiene un transporte optimizado
       if (isGmail) {
-        console.log('Usando configuración manual optimizada para Gmail');
-        
-        transporterConfig = {
-          host: 'smtp.gmail.com',
-          port: 587,
-          secure: false, // TLS/STARTTLS usa puerto 587 con secure: false
-          family: 4, // Forzar IPv4 al nivel de conexión
-          auth: {
-            user: SMTP_USER,
-            pass: SMTP_PASS,
-          },
-          tls: {
-            rejectUnauthorized: false,
-            minVersion: 'TLSv1.2'
-          },
-          debug: true, // Mostrar logs de protocolo SMTP
-          logger: true, // Habilitar logger interno
-          connectionTimeout: 60000,
-          greetingTimeout: 60000,
-          socketTimeout: 60000,
-          dnsTimeout: 30000
-        };
+        config.service = 'gmail';
       }
 
-      console.log("SMTP_HOST:", transporterConfig.host);
-      console.log("SMTP_PORT:", transporterConfig.port);
-      console.log("SMTP_SECURE:", transporterConfig.secure);
-
-      const transporter = nodemailer.createTransport(transporterConfig);
-
-      console.log(`Iniciando conexión SMTP...`);
-
-      const transporterVerify = await new Promise((resolve) => {
-        const timeout = setTimeout(() => {
-          resolve({ success: false, error: { message: 'Timeout en verificación (60s) - El servidor SMTP no responde a tiempo en Render.' } });
-        }, 60000);
-
-        transporter.verify((error, success) => {
-          clearTimeout(timeout);
-          if (error) {
-            console.error('Error de verificación SMTP:', error);
-            resolve({ success: false, error });
-          } else {
-            console.log('Servidor SMTP listo para enviar');
-            resolve({ success: true });
-          }
-        });
-      });
-
-      if (!(transporterVerify as any).success) {
-        throw new Error(`Fallo en la verificación SMTP: ${(transporterVerify as any).error.message}`);
-      }
+      const transporter = nodemailer.createTransport(config);
 
       const mailOptions = {
-        from: SMTP_USER,
+        from: `"AuditCheck Pro" <${SMTP_USER}>`,
         to,
         subject,
         html: generateHtmlBody(message, 'dashboard_image', 'performance_image', auditorName),
         attachments: [
-          // Excel adjunto
           {
             filename: attachments[0].filename,
             content: Buffer.from(attachments[0].content, 'base64'),
           },
-          // Imágenes incrustadas con CID para Nodemailer
           {
             filename: 'dashboard.jpg',
             content: Buffer.from(images.chart.split(',')[1] || images.chart, 'base64'),
@@ -257,11 +210,40 @@ async function startServer() {
         ],
       };
 
+      console.log(`Enviando correo vía ${targetHost}:${port}...`);
       await transporter.sendMail(mailOptions);
-      res.json({ success: true, via: 'smtp', message: 'Correo enviado correctamente vía SMTP' });
-    } catch (error: any) {
-      console.error('Error al enviar correo:', error);
-      res.status(500).json({ error: 'Error al enviar el correo', details: error.message });
+      console.log(`Correo enviado con éxito vía ${targetHost}:${port}`);
+      return true;
+    };
+
+    try {
+      // Intento 1: Puerto 465 (Seguro por defecto - TLS)
+      // A menudo funciona mejor en entornos restringidos como Render
+      try {
+        console.log('Intentando Puerto 465 (SECURE: TRUE)...');
+        await trySmtpSend(465, true);
+        return res.json({ success: true, via: 'smtp-465', message: 'Reporte enviado vía SMTP Seguro (465)' });
+      } catch (err465) {
+        console.warn('Fallo en puerto 465, intentando 587 (STARTTLS)...', (err465 as any).message);
+        
+        // Intento 2: Puerto 587 (STARTTLS)
+        await trySmtpSend(587, false);
+        return res.json({ success: true, via: 'smtp-587', message: 'Reporte enviado vía SMTP (587)' });
+      }
+    } catch (finalError: any) {
+      console.error('TODOS LOS INTENTOS SMTP FALLARON EN RENDER:', finalError);
+      
+      let errorMsg = finalError.message || 'Error de conexión desconocido';
+      let details = 'No se pudo establecer conexión con el servidor SMTP. ';
+      
+      if (errorMsg.includes('ECONNREFUSED')) details += 'La conexión fue rechazada. Verifique si el puerto está bloqueado.';
+      if (errorMsg.includes('ETIMEDOUT')) details += 'Tiempo de espera agotado. El servidor no respondió.';
+      if (errorMsg.includes('EAUTH')) details += 'Error de autenticación. Verifique su Gmail y "Contraseña de Aplicación".';
+
+      res.status(500).json({ 
+        error: 'Fallo Total de Conexión', 
+        details: `${details} (Error: ${errorMsg})`
+      });
     }
   });
 
@@ -326,4 +308,3 @@ startServer().catch(err => {
   console.error('ERROR FATAL AL INICIAR EL SERVIDOR:', err);
   process.exit(1);
 });
-
