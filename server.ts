@@ -69,9 +69,13 @@ async function startServer() {
     const SMTP_HOST = smtpConfig?.host || ENV_HOST || 'smtp.gmail.com';
     const SMTP_PORT = smtpConfig?.port || ENV_PORT || '587';
 
-    // Prioridad 1: RESEND API (Solución definitiva para Render)
-    if (RESEND_API_KEY) {
-      console.log('--- INTENTO DE ENVÍO VÍA RESEND API (Prioridad 1) ---');
+    // NUEVA PRIORIDAD: Si el usuario envió configuración SMTP MANUAL en el cuerpo de la petición, 
+    // intentamos SMTP PRIMERO para respetar su elección explícita.
+    const isManualSmtp = !!(smtpConfig?.user && smtpConfig?.pass);
+
+    // Prioridad 1: RESEND API (Solo si no es una configuración manual explícita y hay API KEY)
+    if (RESEND_API_KEY && !isManualSmtp) {
+      console.log('--- INTENTO DE ENVÍO VÍA RESEND API ---');
       const resend = new Resend(RESEND_API_KEY);
       
       try {
@@ -104,33 +108,37 @@ async function startServer() {
 
         if (error) {
           console.error('Error reportado por Resend API:', error);
-          // Si el error es de tipo "prohibido" o "no verificado", informamos al usuario sobre el Sandbox
+          // Si el error es de tipo "prohibido" o "no verificado", y hay SMTP, continuamos al fallback
           const errorMsg = (error as any).message || 'Error desconocido en Resend';
-          if (errorMsg.includes('unverified') || (error as any).name === 'forbidden' || (error as any).name === 'validation_error') {
+          const isRestriction = errorMsg.includes('unverified') || (error as any).name === 'forbidden' || (error as any).name === 'validation_error';
+          
+          if (isRestriction && (SMTP_USER && SMTP_PASS)) {
+            console.log('Resend restringido (Sandbox). Intentando FALLBACK a SMTP...');
+            // No retornamos, permitimos que el código siga al bloque SMTP
+          } else if (isRestriction) {
             return res.status(403).json({
               error: 'Error de Restricción (Resend Sandbox)',
               details: `Resend en modo gratuito solo permite enviar correos a la dirección verificada. Para enviar a "${to}", debe verificar su dominio o usar credenciales SMTP.`
             });
+          } else {
+            throw error;
           }
-          throw error;
+        } else {
+          console.log('Correo enviado exitosamente vía Resend API:', data);
+          return res.json({ 
+            success: true, 
+            via: 'resend', 
+            message: 'Reporte enviado con éxito vía Resend' 
+          });
         }
-
-        console.log('Correo enviado exitosamente vía Resend API:', data);
-        return res.json({ 
-          success: true, 
-          via: 'resend', 
-          message: 'Reporte enviado con éxito vía Resend (Sin contraseñas SMTP)' 
-        });
       } catch (resendError: any) {
         console.error('Fallo Resend API:', resendError);
-        // Si no hay SMTP configurado, devolvemos el error de Resend inmediatamente
         if (!SMTP_USER || !SMTP_PASS) {
           return res.status(500).json({ 
             error: 'Fallo al enviar vía Resend',
-            details: resendError.message || 'Error inesperado en el servicio de correo.' 
+            details: resendError.message || 'Error inesperado.' 
           });
         }
-        // Si hay SMTP, continuamos para intentar el fallback
       }
     }
 
@@ -318,3 +326,4 @@ startServer().catch(err => {
   console.error('ERROR FATAL AL INICIAR EL SERVIDOR:', err);
   process.exit(1);
 });
+
