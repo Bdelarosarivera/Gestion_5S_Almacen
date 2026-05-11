@@ -87,7 +87,10 @@ async function startServer() {
 
     try {
       const { data, error } = await resend.emails.send({
-        from: `AuditCheck Pro <${GMAIL_FROM}>`,
+        // DESPUÉS:
+      from: `AuditCheck Pro <onboarding@resend.dev>`,
+ 
+       
         to: [to],
         reply_to: GMAIL_FROM,
         subject: subject,
